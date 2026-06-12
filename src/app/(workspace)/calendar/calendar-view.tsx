@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
 
 export type CalEvent = {
   id: string;
@@ -15,15 +15,37 @@ export type CalEvent = {
 };
 
 type View = "day" | "week" | "month";
+type EventFormState = {
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  description: string;
+  location: string;
+  attendees: string;
+};
 
-const DAY_START = 7; // 7 AM
-const DAY_END = 21; // 9 PM
+const DAY_START = 0;
+const DAY_END = 24;
 const ROW_HEIGHT = 48;
-const hours = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i);
+const hours = Array.from(
+  { length: DAY_END - DAY_START },
+  (_, i) => DAY_START + i,
+);
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function startOf(date: Date) {
@@ -61,7 +83,9 @@ function fmtTime(d: Date) {
   const m = d.getMinutes();
   const period = h >= 12 ? "pm" : "am";
   const display = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${display} ${period}` : `${display}:${String(m).padStart(2, "0")} ${period}`;
+  return m === 0
+    ? `${display} ${period}`
+    : `${display}:${String(m).padStart(2, "0")} ${period}`;
 }
 function hourLabel(h: number) {
   const period = h >= 12 ? "PM" : "AM";
@@ -69,9 +93,92 @@ function hourLabel(h: number) {
   return `${display} ${period}`;
 }
 
+function toLocalInput(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function toFormTime(value: string | null, allDay: boolean) {
+  if (!value) return "";
+  if (allDay) return value.slice(0, 10);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value.slice(0, 16) : toLocalInput(date);
+}
+
+function normalizeFormTime(value: string, allDay: boolean) {
+  if (allDay) return value;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
+function defaultEventForm(now: Date): EventFormState {
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start.getTime() + 30 * 60000);
+  return {
+    title: "",
+    start: toLocalInput(start),
+    end: toLocalInput(end),
+    allDay: false,
+    description: "",
+    location: "",
+    attendees: "",
+  };
+}
+
+function formFromEvent(event: CalEvent): EventFormState {
+  return {
+    title: event.title,
+    start: toFormTime(event.start, event.allDay),
+    end: toFormTime(event.end, event.allDay),
+    allDay: event.allDay,
+    description: "",
+    location: event.location ?? "",
+    attendees: event.attendees.join(", "),
+  };
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  const payload = (await response.json().catch(() => ({}))) as
+    | T
+    | { error?: string };
+  if (!response.ok) {
+    const error =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? payload.error
+        : undefined;
+    throw new Error(
+      typeof error === "string" && error ? error : "Request failed.",
+    );
+  }
+  return payload as T;
+}
+
+function formPayload(form: EventFormState) {
+  const attendees = form.attendees
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  return {
+    title: form.title,
+    start: normalizeFormTime(form.start, form.allDay),
+    end: normalizeFormTime(form.end, form.allDay),
+    allDay: form.allDay,
+    description: form.description || undefined,
+    location: form.location || undefined,
+    attendees: attendees.length > 0 ? attendees : undefined,
+    sendUpdates: "all" as const,
+  };
+}
+
 type Positioned = { ev: CalEvent; start: Date; end: Date };
 
-function positioned(events: CalEvent[]): { timed: Positioned[]; allDay: CalEvent[] } {
+function positioned(events: CalEvent[]): {
+  timed: Positioned[];
+  allDay: CalEvent[];
+} {
   const timed: Positioned[] = [];
   const allDay: CalEvent[] = [];
   for (const ev of events) {
@@ -80,19 +187,29 @@ function positioned(events: CalEvent[]): { timed: Positioned[]; allDay: CalEvent
       continue;
     }
     const start = new Date(ev.start);
-    const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 30 * 60000);
+    const end = ev.end
+      ? new Date(ev.end)
+      : new Date(start.getTime() + 30 * 60000);
     if (Number.isNaN(start.getTime())) continue;
     timed.push({ ev, start, end });
   }
   return { timed, allDay };
 }
 
-function EventBlock({ p }: { p: Positioned }) {
+function EventBlock({
+  p,
+  onSelect,
+}: {
+  p: Positioned;
+  onSelect: (event: CalEvent) => void;
+}) {
   const top = (hourFraction(p.start) - DAY_START) * ROW_HEIGHT;
   const rawH = (hourFraction(p.end) - hourFraction(p.start)) * ROW_HEIGHT;
   const height = Math.max(rawH - 3, 18);
   return (
-    <div
+    <button
+      type="button"
+      onClick={() => onSelect(p.ev)}
       className="absolute right-1 left-1 overflow-hidden rounded-[var(--radius-sm)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] px-1.5 py-1"
       style={{ top: Math.max(top, 0), height }}
       title={p.ev.title}
@@ -105,7 +222,7 @@ function EventBlock({ p }: { p: Positioned }) {
           {fmtTime(p.start)}
         </p>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -119,10 +236,21 @@ export function CalendarView({
   const now = useMemo(() => new Date(nowISO), [nowISO]);
   const [view, setView] = useState<View>("week");
   const [ref, setRef] = useState<Date>(() => new Date(nowISO));
+  const [calendarEvents, setCalendarEvents] = useState(events);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<EventFormState>(() =>
+    defaultEventForm(new Date(nowISO)),
+  );
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const selected =
+    calendarEvents.find((event) => event.id === selectedId) ?? null;
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
-    for (const ev of events) {
+    for (const ev of calendarEvents) {
       if (!ev.start) continue;
       const d = new Date(ev.start);
       if (Number.isNaN(d.getTime())) continue;
@@ -132,17 +260,20 @@ export function CalendarView({
       map.set(key, list);
     }
     return map;
-  }, [events]);
+  }, [calendarEvents]);
 
-  const dayEvents = (d: Date) => eventsByDay.get(startOf(d).toDateString()) ?? [];
+  const dayEvents = (d: Date) =>
+    eventsByDay.get(startOf(d).toDateString()) ?? [];
 
   const upNext = useMemo(
     () =>
-      events
+      calendarEvents
         .filter((e) => e.start && new Date(e.start).getTime() >= now.getTime())
-        .sort((a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime())
+        .sort(
+          (a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime(),
+        )
         .slice(0, 6),
-    [events, now],
+    [calendarEvents, now],
   );
 
   const weekStart = startOfWeek(ref);
@@ -154,13 +285,120 @@ export function CalendarView({
 
   function shift(dir: -1 | 1) {
     setRef((r) =>
-      view === "day" ? addDays(r, dir) : view === "week" ? addDays(r, dir * 7) : addMonths(r, dir),
+      view === "day"
+        ? addDays(r, dir)
+        : view === "week"
+          ? addDays(r, dir * 7)
+          : addMonths(r, dir),
     );
+  }
+
+  function selectEvent(event: CalEvent) {
+    setCreating(false);
+    setSelectedId(event.id);
+    setForm(formFromEvent(event));
+    setStatus(null);
+  }
+
+  function startCreate() {
+    setCreating(true);
+    setSelectedId(null);
+    setForm(defaultEventForm(ref));
+    setStatus(null);
+  }
+
+  async function createEvent() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const payload = await readJson<{ event: CalEvent }>(
+        await fetch("/api/koda/calendar/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formPayload(form)),
+        }),
+      );
+      setCalendarEvents((current) => [...current, payload.event]);
+      setCreating(false);
+      setSelectedId(payload.event.id);
+      setForm(formFromEvent(payload.event));
+      setStatus("Event created.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Could not create event.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateEvent() {
+    if (!selected) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const payload = await readJson<{ event: CalEvent }>(
+        await fetch(
+          `/api/koda/calendar/events/${encodeURIComponent(selected.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formPayload(form)),
+          },
+        ),
+      );
+      setCalendarEvents((current) =>
+        current.map((event) =>
+          event.id === payload.event.id ? payload.event : event,
+        ),
+      );
+      setSelectedId(payload.event.id);
+      setForm(formFromEvent(payload.event));
+      setStatus("Event updated.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Could not update event.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteEvent() {
+    if (!selected) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      await readJson<{ deleted: { id: string } }>(
+        await fetch(
+          `/api/koda/calendar/events/${encodeURIComponent(selected.id)}`,
+          {
+            method: "DELETE",
+          },
+        ),
+      );
+      setCalendarEvents((current) =>
+        current.filter((event) => event.id !== selected.id),
+      );
+      setSelectedId(null);
+      setForm(defaultEventForm(ref));
+      setStatus("Event deleted.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Could not delete event.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   const title =
     view === "day"
-      ? ref.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+      ? ref.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        })
       : view === "week"
         ? `${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${addDays(weekStart, 6).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
         : `${MONTH_NAMES[ref.getMonth()]} ${ref.getFullYear()}`;
@@ -211,20 +449,56 @@ export function CalendarView({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={startCreate}
+          className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
+        >
+          New event
+        </button>
       </div>
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 xl:grid-cols-[minmax(0,1fr)_280px]">
         <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0">
-          {view === "day" && <DayGrid date={ref} now={now} events={dayEvents(ref)} />}
+          {view === "day" && (
+            <DayGrid
+              date={ref}
+              now={now}
+              events={dayEvents(ref)}
+              onSelect={selectEvent}
+            />
+          )}
           {view === "week" && (
-            <WeekGrid days={weekDays} now={now} dayEvents={dayEvents} />
+            <WeekGrid
+              days={weekDays}
+              now={now}
+              dayEvents={dayEvents}
+              onSelect={selectEvent}
+            />
           )}
           {view === "month" && (
-            <MonthGrid ref={ref} now={now} dayEvents={dayEvents} />
+            <MonthGrid
+              ref={ref}
+              now={now}
+              dayEvents={dayEvents}
+              onSelect={selectEvent}
+            />
           )}
         </section>
 
         <aside className="flex flex-col gap-4 lg:min-h-0 lg:overflow-y-auto">
+          {(creating || selected) && (
+            <EventEditor
+              mode={creating ? "create" : "edit"}
+              form={form}
+              setForm={setForm}
+              busy={busy}
+              status={status}
+              onSave={creating ? createEvent : updateEvent}
+              onDelete={creating ? undefined : deleteEvent}
+            />
+          )}
+
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-4">
             <p className="kicker">This week</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -258,9 +532,11 @@ export function CalendarView({
               {upNext.map((item) => {
                 const d = new Date(item.start!);
                 return (
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => selectEvent(item)}
                     key={item.id}
-                    className="flex items-center gap-2.5 rounded-[var(--radius)] px-2 py-2 transition hover:bg-[var(--color-panel)]"
+                    className="flex w-full items-center gap-2.5 rounded-[var(--radius)] px-2 py-2 text-left transition hover:bg-[var(--color-panel)]"
                   >
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
                     <div className="min-w-0">
@@ -272,7 +548,7 @@ export function CalendarView({
                         {item.allDay ? "All day" : fmtTime(d)}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -299,28 +575,174 @@ function TimeColumn() {
   );
 }
 
-function AllDayRow({ events }: { events: CalEvent[] }) {
+function EventEditor({
+  mode,
+  form,
+  setForm,
+  busy,
+  status,
+  onSave,
+  onDelete,
+}: {
+  mode: "create" | "edit";
+  form: EventFormState;
+  setForm: Dispatch<SetStateAction<EventFormState>>;
+  busy: boolean;
+  status: string | null;
+  onSave: () => void;
+  onDelete?: () => void;
+}) {
+  const timeType = form.allDay ? "date" : "datetime-local";
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-4">
+      <p className="kicker">
+        {mode === "create" ? "Create event" : "Edit event"}
+      </p>
+      <div className="mt-3 space-y-2.5">
+        <input
+          value={form.title}
+          onChange={(e) =>
+            setForm((current) => ({ ...current, title: e.target.value }))
+          }
+          placeholder="Title"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
+        />
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]">
+          <input
+            type="checkbox"
+            checked={form.allDay}
+            onChange={(e) =>
+              setForm((current) => ({
+                ...current,
+                allDay: e.target.checked,
+                start: e.target.checked
+                  ? current.start.slice(0, 10)
+                  : current.start.includes("T")
+                    ? current.start
+                    : `${current.start}T09:00`,
+                end: e.target.checked
+                  ? current.end.slice(0, 10)
+                  : current.end.includes("T")
+                    ? current.end
+                    : `${current.end}T09:30`,
+              }))
+            }
+          />
+          All day
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type={timeType}
+            value={form.start}
+            onChange={(e) =>
+              setForm((current) => ({ ...current, start: e.target.value }))
+            }
+            className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1.5 text-[12px] text-[var(--color-text)] outline-none"
+          />
+          <input
+            type={timeType}
+            value={form.end}
+            onChange={(e) =>
+              setForm((current) => ({ ...current, end: e.target.value }))
+            }
+            className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1.5 text-[12px] text-[var(--color-text)] outline-none"
+          />
+        </div>
+        <input
+          value={form.location}
+          onChange={(e) =>
+            setForm((current) => ({ ...current, location: e.target.value }))
+          }
+          placeholder="Location"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
+        />
+        <input
+          value={form.attendees}
+          onChange={(e) =>
+            setForm((current) => ({ ...current, attendees: e.target.value }))
+          }
+          placeholder="Attendees, comma separated"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
+        />
+        <textarea
+          value={form.description}
+          onChange={(e) =>
+            setForm((current) => ({ ...current, description: e.target.value }))
+          }
+          placeholder="Description"
+          rows={3}
+          className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
+        />
+      </div>
+      {status && (
+        <p className="mt-3 text-[12px] text-[var(--color-text-soft)]">
+          {status}
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={busy}
+          className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+        >
+          {busy ? "Saving..." : mode === "create" ? "Create" : "Save"}
+        </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-danger)] px-3 py-1.5 text-[12px] text-[var(--color-danger)] transition hover:bg-[var(--color-danger-soft)] disabled:opacity-60"
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AllDayRow({
+  events,
+  onSelect,
+}: {
+  events: CalEvent[];
+  onSelect: (event: CalEvent) => void;
+}) {
   if (events.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1 border-b border-[var(--color-line)] px-2 py-1.5">
       {events.map((e) => (
-        <span
+        <button
+          type="button"
+          onClick={() => onSelect(e)}
           key={e.id}
           className="truncate rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-[10px] text-[var(--color-text)]"
         >
           {e.title}
-        </span>
+        </button>
       ))}
     </div>
   );
 }
 
-function DayGrid({ date, now, events }: { date: Date; now: Date; events: CalEvent[] }) {
+function DayGrid({
+  date,
+  now,
+  events,
+  onSelect,
+}: {
+  date: Date;
+  now: Date;
+  events: CalEvent[];
+  onSelect: (event: CalEvent) => void;
+}) {
   const { timed, allDay } = positioned(events);
   const isToday = sameDay(date, now);
   return (
     <div className="h-full overflow-y-auto">
-      <AllDayRow events={allDay} />
+      <AllDayRow events={allDay} onSelect={onSelect} />
       <div className="grid grid-cols-[56px_1fr]">
         <TimeColumn />
         <div className="relative">
@@ -333,7 +755,7 @@ function DayGrid({ date, now, events }: { date: Date; now: Date; events: CalEven
           ))}
           {isToday && <NowLine now={now} />}
           {timed.map((p) => (
-            <EventBlock key={p.ev.id} p={p} />
+            <EventBlock key={p.ev.id} p={p} onSelect={onSelect} />
           ))}
           {timed.length === 0 && allDay.length === 0 && (
             <p className="absolute top-3 left-3 text-[13px] text-[var(--color-text-soft)]">
@@ -350,7 +772,10 @@ function NowLine({ now }: { now: Date }) {
   const top = (hourFraction(now) - DAY_START) * ROW_HEIGHT;
   if (top < 0 || top > (DAY_END - DAY_START) * ROW_HEIGHT) return null;
   return (
-    <div className="absolute right-0 left-0 z-10 flex items-center" style={{ top }}>
+    <div
+      className="absolute right-0 left-0 z-10 flex items-center"
+      style={{ top }}
+    >
       <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
       <span className="h-px flex-1 bg-[var(--color-danger)]" />
     </div>
@@ -361,10 +786,12 @@ function WeekGrid({
   days,
   now,
   dayEvents,
+  onSelect,
 }: {
   days: Date[];
   now: Date;
   dayEvents: (d: Date) => CalEvent[];
+  onSelect: (event: CalEvent) => void;
 }) {
   return (
     <div className="h-full overflow-auto">
@@ -385,7 +812,9 @@ function WeekGrid({
                 </span>
                 <span
                   className={`text-[14px] font-medium ${
-                    today ? "text-[var(--color-accent)]" : "text-[var(--color-text)]"
+                    today
+                      ? "text-[var(--color-accent)]"
+                      : "text-[var(--color-text)]"
                   }`}
                 >
                   {d.getDate()}
@@ -398,7 +827,7 @@ function WeekGrid({
         <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
           <TimeColumn />
           {days.map((d) => {
-            const { timed } = positioned(dayEvents(d));
+            const { timed, allDay } = positioned(dayEvents(d));
             const today = sameDay(d, now);
             return (
               <div
@@ -414,9 +843,23 @@ function WeekGrid({
                     style={{ height: ROW_HEIGHT }}
                   />
                 ))}
+                {allDay.length > 0 && (
+                  <div className="absolute top-1 right-1 left-1 z-10 space-y-1">
+                    {allDay.slice(0, 2).map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => onSelect(event)}
+                        className="block w-full truncate rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-left text-[10px] text-[var(--color-text)]"
+                      >
+                        {event.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {today && <NowLine now={now} />}
                 {timed.map((p) => (
-                  <EventBlock key={p.ev.id} p={p} />
+                  <EventBlock key={p.ev.id} p={p} onSelect={onSelect} />
                 ))}
               </div>
             );
@@ -431,10 +874,12 @@ function MonthGrid({
   ref,
   now,
   dayEvents,
+  onSelect,
 }: {
   ref: Date;
   now: Date;
   dayEvents: (d: Date) => CalEvent[];
+  onSelect: (event: CalEvent) => void;
 }) {
   const monthStart = new Date(ref.getFullYear(), ref.getMonth(), 1);
   const gridStart = startOfWeek(monthStart);
@@ -484,13 +929,15 @@ function MonthGrid({
                   </span>
                   <div className="mt-1 space-y-0.5">
                     {evs.slice(0, 3).map((e) => (
-                      <div
+                      <button
+                        type="button"
+                        onClick={() => onSelect(e)}
                         key={e.id}
-                        className="flex items-center gap-1 truncate text-[10px] text-[var(--color-text-muted)]"
+                        className="flex w-full items-center gap-1 truncate text-left text-[10px] text-[var(--color-text-muted)]"
                       >
                         <span className="h-1 w-1 shrink-0 rounded-full bg-[var(--color-accent)]" />
                         <span className="truncate">{e.title}</span>
-                      </div>
+                      </button>
                     ))}
                     {evs.length > 3 && (
                       <p className="text-[10px] text-[var(--color-text-soft)]">

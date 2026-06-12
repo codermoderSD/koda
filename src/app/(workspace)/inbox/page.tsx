@@ -1,5 +1,5 @@
 import { getCalendarWindow } from "~/server/koda/calendar";
-import { getInboxThreads } from "~/server/koda/inbox";
+import { getInboxThreadPage, type InboxThread } from "~/server/koda/inbox";
 
 import { inboxThreads as mockThreads } from "../_components/mock-data";
 import { WorkspaceConsole, type Thread } from "./workspace-console";
@@ -7,7 +7,8 @@ import { WorkspaceConsole, type Thread } from "./workspace-console";
 function formatReceivedAt(value: string | null) {
   if (!value) return "Recently";
 
-  const date = new Date(value);
+  const numeric = Number(value);
+  const date = Number.isNaN(numeric) ? new Date(value) : new Date(numeric);
   if (Number.isNaN(date.getTime())) return "Recently";
 
   return new Intl.DateTimeFormat("en-US", {
@@ -24,29 +25,55 @@ function priorityFor(labels: string[]) {
   return "OPEN";
 }
 
+function toConsoleThread(thread: InboxThread): Thread {
+  return {
+    id: thread.id,
+    from: thread.from,
+    to: thread.to,
+    subject: thread.subject,
+    preview: thread.preview,
+    body: thread.body ?? thread.preview,
+    time: formatReceivedAt(thread.receivedAt),
+    priority: priorityFor(thread.labels),
+    messages: thread.messages.map((message) => ({
+      id: message.id,
+      from: message.from,
+      to: message.to,
+      body: message.body,
+      preview: message.preview,
+      time: formatReceivedAt(message.receivedAt),
+      receivedAt: message.receivedAt,
+    })),
+  };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function WorkspacePage() {
   const now = new Date();
-  const [liveThreads, events] = await Promise.all([
-    getInboxThreads({ maxResults: 20 }),
+  const [mailPage, events] = await Promise.all([
+    getInboxThreadPage({ maxResults: 20 }),
     getCalendarWindow(now),
   ]);
+  const liveThreads = mailPage.threads;
 
   const live = liveThreads.length > 0;
   const threads: Thread[] = live
-    ? liveThreads.map((thread) => ({
-        id: thread.id,
-        from: thread.from,
-        subject: thread.subject,
-        preview: thread.preview,
-        body: thread.body ?? thread.preview,
-        time: formatReceivedAt(thread.receivedAt),
-        priority: priorityFor(thread.labels),
-      }))
+    ? liveThreads.map(toConsoleThread)
     : mockThreads.map((thread, index) => ({
         ...thread,
         id: `${thread.from}-${index}`,
+        messages: [
+          {
+            id: `${thread.from}-${index}-message`,
+            from: thread.from,
+            to: null,
+            body: thread.body,
+            preview: thread.preview,
+            time: thread.time,
+            receivedAt: null,
+          },
+        ],
       }));
 
   return (
@@ -61,6 +88,7 @@ export default async function WorkspacePage() {
       <div className="lg:min-h-0 lg:flex-1">
         <WorkspaceConsole
           threads={threads}
+          nextPageToken={live ? mailPage.nextPageToken : null}
           events={events}
           nowISO={now.toISOString()}
         />

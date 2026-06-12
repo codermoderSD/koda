@@ -47,6 +47,22 @@ export type InboxThread = {
   receivedAt: string | null;
   labels: string[];
   messageCount: number;
+  messages: InboxMessage[];
+};
+
+export type InboxMessage = {
+  id: string;
+  from: string;
+  to: string | null;
+  subject: string;
+  body: string;
+  preview: string;
+  receivedAt: string | null;
+};
+
+export type InboxThreadPage = {
+  threads: InboxThread[];
+  nextPageToken: string | null;
 };
 
 function readHeader(
@@ -117,12 +133,16 @@ function normalizeThread(thread: GmailThread): InboxThread | null {
   if (!thread.id) return null;
 
   const lastMessage = thread.messages?.at(-1);
+  const messages = (thread.messages ?? []).flatMap(normalizeMessage);
   const subject =
-    lastMessage?.subject ?? readHeader(lastMessage, "subject") ?? "Untitled thread";
+    lastMessage?.subject ??
+    readHeader(lastMessage, "subject") ??
+    "Untitled thread";
   const from =
     lastMessage?.from ?? readHeader(lastMessage, "from") ?? "Unknown sender";
   const to = lastMessage?.to ?? readHeader(lastMessage, "to") ?? null;
-  const preview = lastMessage?.snippet ?? thread.snippet ?? "No preview available";
+  const preview =
+    lastMessage?.snippet ?? thread.snippet ?? "No preview available";
   const receivedAt = lastMessage?.internalDate ?? null;
 
   const body = lastMessage ? bestBody(lastMessage) : undefined;
@@ -136,20 +156,54 @@ function normalizeThread(thread: GmailThread): InboxThread | null {
     body: body || preview,
     receivedAt,
     labels: lastMessage?.labelIds ?? [],
-    messageCount: thread.messages?.length ?? 0,
+    messageCount: messages.length,
+    messages,
   };
+}
+
+function normalizeMessage(message: GmailMessage): InboxMessage[] {
+  if (!message.id) return [];
+
+  const subject =
+    message.subject ?? readHeader(message, "subject") ?? "Untitled message";
+  const from = message.from ?? readHeader(message, "from") ?? "Unknown sender";
+  const to = message.to ?? readHeader(message, "to") ?? null;
+  const preview = message.snippet ?? "No preview available";
+  const body = bestBody(message) || preview;
+
+  return [
+    {
+      id: message.id,
+      from,
+      to,
+      subject,
+      body,
+      preview,
+      receivedAt: message.internalDate ?? null,
+    },
+  ];
 }
 
 export async function getInboxThreads(options?: {
   maxResults?: number;
   tenantId?: string;
 }): Promise<InboxThread[]> {
+  const page = await getInboxThreadPage(options);
+  return page.threads;
+}
+
+export async function getInboxThreadPage(options?: {
+  maxResults?: number;
+  pageToken?: string;
+  tenantId?: string;
+}): Promise<InboxThreadPage> {
   const tenantId = options?.tenantId ?? (await getTenantId());
   const gmail = corsair.withTenant(tenantId).gmail;
 
   try {
     const list = await gmail.api.threads.list({
       maxResults: options?.maxResults ?? 12,
+      pageToken: options?.pageToken,
       includeSpamTrash: false,
     });
 
@@ -170,13 +224,18 @@ export async function getInboxThreads(options?: {
       }),
     );
 
-    return detailedThreads.flatMap((thread) => {
+    const threads = detailedThreads.flatMap((thread) => {
       if (!thread) return [];
 
       const normalized = normalizeThread(thread);
       return normalized ? [normalized] : [];
     });
+
+    return {
+      threads,
+      nextPageToken: list.nextPageToken ?? null,
+    };
   } catch {
-    return [];
+    return { threads: [], nextPageToken: null };
   }
 }

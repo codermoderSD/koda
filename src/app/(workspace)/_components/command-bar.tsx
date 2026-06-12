@@ -15,7 +15,10 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
 
 const allCommitments = [
   ...commitmentColumns.mine.map((c) => ({ ...c, lane: "Promised by me" })),
-  ...commitmentColumns.waitingOn.map((c) => ({ ...c, lane: "Waiting on others" })),
+  ...commitmentColumns.waitingOn.map((c) => ({
+    ...c,
+    lane: "Waiting on others",
+  })),
 ];
 
 const modeTone: Record<Mode, string> = {
@@ -31,6 +34,7 @@ export function CommandBar() {
   const [done, setDone] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Popup only opens when something is explicit: a command is active, the user
@@ -125,17 +129,50 @@ export function CommandBar() {
         if (top) activate(top.id);
         return;
       }
-      submit();
+      void submit();
     }
   }
 
-  function submit() {
-    if (command === "schedule" || command === "draft") {
-      setDone(
-        command === "schedule"
-          ? "Event created on your calendar."
-          : "Draft saved to the thread.",
-      );
+  async function submit() {
+    if (command === "schedule") {
+      const title = query.trim() || "New event";
+      const start = new Date();
+      start.setDate(start.getDate() + 1);
+      start.setHours(9, 0, 0, 0);
+      const end = new Date(start.getTime() + 30 * 60000);
+      setBusy(true);
+      try {
+        const response = await fetch("/api/koda/calendar/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            start: start.toISOString(),
+            end: end.toISOString(),
+            sendUpdates: "all",
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Could not create event.");
+        }
+        setDone("Event created on your calendar.");
+        setCommand(null);
+        setQuery("");
+      } catch (error) {
+        setDone(
+          error instanceof Error ? error.message : "Could not create event.",
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (command === "draft") {
+      setDone("Open a thread and use Reply from KODA to send through Gmail.");
       setCommand(null);
       setQuery("");
       return;
@@ -252,10 +289,11 @@ export function CommandBar() {
           {command || query.trim() ? (
             <button
               type="button"
-              onClick={submit}
+              onClick={() => void submit()}
+              disabled={busy}
               className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white transition hover:bg-[var(--color-accent-strong)]"
             >
-              ↵ Run
+              {busy ? "Running" : "↵ Run"}
             </button>
           ) : (
             <kbd className="shrink-0 rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-soft)]">
@@ -313,7 +351,11 @@ function SchedulePreview({
 }) {
   const title = query.trim() || "New event";
   return (
-    <PreviewShell label="Proposed event" confirmLabel="Create event" onConfirm={onConfirm}>
+    <PreviewShell
+      label="Proposed event"
+      confirmLabel="Create event"
+      onConfirm={onConfirm}
+    >
       <p className="text-[14px] font-medium text-[var(--color-text)]">
         {title.charAt(0).toUpperCase() + title.slice(1)}
       </p>
@@ -336,10 +378,14 @@ function SchedulePreview({
 
 function DraftPreview({ onConfirm }: { onConfirm: () => void }) {
   return (
-    <PreviewShell label="Draft reply" confirmLabel="Save draft" onConfirm={onConfirm}>
+    <PreviewShell
+      label="Draft reply"
+      confirmLabel="Save draft"
+      onConfirm={onConfirm}
+    >
       <p className="text-[13px] leading-6 text-[var(--color-text-muted)]">
-        Following up on the points below — happy to jump on a quick call if that is
-        easier. Let me know what works and I will send an invite.
+        Following up on the points below — happy to jump on a quick call if that
+        is easier. Let me know what works and I will send an invite.
       </p>
     </PreviewShell>
   );
@@ -412,9 +458,10 @@ function AskAnswer({ query }: { query: string }) {
   return (
     <div className="space-y-2.5">
       <p className="text-[14px] leading-7 text-[var(--color-text)]">
-        You have <span className="font-medium">3 open commitments</span> this week.
-        One is overdue: the Northwind MSA redlines (2 days). Priya&apos;s Q3 pricing
-        sheet is due tomorrow 9 AM, and the Vela intro reply is due Friday.
+        You have <span className="font-medium">3 open commitments</span> this
+        week. One is overdue: the Northwind MSA redlines (2 days). Priya&apos;s
+        Q3 pricing sheet is due tomorrow 9 AM, and the Vela intro reply is due
+        Friday.
       </p>
       {query.trim() && (
         <p className="text-[12px] text-[var(--color-text-soft)]">

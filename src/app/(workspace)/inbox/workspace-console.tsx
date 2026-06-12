@@ -9,11 +9,13 @@ import type { CalEvent } from "../calendar/calendar-view";
 export type Thread = {
   id: string;
   from: string;
+  to?: string | null;
   subject: string;
   preview: string;
   time: string;
   priority: string;
   body?: string;
+  messages: ThreadMessage[];
   commitment?: {
     title: string;
     owner: string;
@@ -21,6 +23,28 @@ export type Thread = {
     deadline: string;
     confidence: string;
   };
+};
+
+type ThreadMessage = {
+  id: string;
+  from: string;
+  to?: string | null;
+  body: string;
+  preview: string;
+  time: string;
+  receivedAt: string | null;
+};
+
+type QuickEventForm = {
+  title: string;
+  start: string;
+  end: string;
+};
+
+type ComposeForm = {
+  to: string;
+  subject: string;
+  body: string;
 };
 
 const priorityTone: Record<string, string> = {
@@ -51,7 +75,59 @@ function fmtTime(d: Date) {
   const m = d.getMinutes();
   const period = h >= 12 ? "pm" : "am";
   const display = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${display}${period}` : `${display}:${String(m).padStart(2, "0")}${period}`;
+  return m === 0
+    ? `${display}${period}`
+    : `${display}:${String(m).padStart(2, "0")}${period}`;
+}
+
+function toLocalInput(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function defaultQuickEvent(now: Date): QuickEventForm {
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start.getTime() + 30 * 60000);
+  return {
+    title: "",
+    start: toLocalInput(start),
+    end: toLocalInput(end),
+  };
+}
+
+function defaultCompose(): ComposeForm {
+  return { to: "", subject: "", body: "" };
+}
+
+function formatThreadTime(value: string | null) {
+  if (!value) return "Recently";
+  const numeric = Number(value);
+  const date = Number.isNaN(numeric) ? new Date(value) : new Date(numeric);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  const payload = (await response.json().catch(() => ({}))) as
+    | T
+    | { error?: string };
+  if (!response.ok) {
+    const error =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? payload.error
+        : undefined;
+    throw new Error(
+      typeof error === "string" && error ? error : "Request failed.",
+    );
+  }
+  return payload as T;
 }
 
 function Tag({ label }: { label: string }) {
@@ -87,7 +163,7 @@ function CollapsedRail({
       className="flex shrink-0 items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[var(--color-text-soft)] transition hover:text-[var(--color-text)] lg:h-full lg:w-11 lg:flex-col lg:justify-start lg:px-0 lg:py-3"
     >
       <span className="font-mono text-[12px]">⊕</span>
-      <span className="kicker lg:[writing-mode:vertical-rl] lg:rotate-180">
+      <span className="kicker lg:rotate-180 lg:[writing-mode:vertical-rl]">
         {title}
       </span>
     </button>
@@ -134,10 +210,12 @@ function PaneHeader({
 
 export function WorkspaceConsole({
   threads,
+  nextPageToken,
   events,
   nowISO,
 }: {
   threads: Thread[];
+  nextPageToken: string | null;
   events: CalEvent[];
   nowISO: string;
 }) {
@@ -146,9 +224,28 @@ export function WorkspaceConsole({
     detail: false,
     calendar: false,
   });
+  const [localThreads, setLocalThreads] = useState(threads);
+  const [pageToken, setPageToken] = useState(nextPageToken);
+  const [pageBusy, setPageBusy] = useState(false);
   const [selectedId, setSelectedId] = useState(threads[0]?.id);
   const [mailQuery, setMailQuery] = useState("");
   const [mailFilter, setMailFilter] = useState<"focused" | "all">("focused");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeForm, setComposeForm] = useState<ComposeForm>(() =>
+    defaultCompose(),
+  );
+  const [composeStatus, setComposeStatus] = useState<string | null>(null);
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replyStatus, setReplyStatus] = useState<string | null>(null);
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [eventOpen, setEventOpen] = useState(false);
+  const [eventForm, setEventForm] = useState<QuickEventForm>(() =>
+    defaultQuickEvent(new Date(nowISO)),
+  );
+  const [eventStatus, setEventStatus] = useState<string | null>(null);
+  const [eventBusy, setEventBusy] = useState(false);
+  const [localEvents, setLocalEvents] = useState(events);
 
   const FOCUSED_PRIORITIES = new Set([
     "NEW",
@@ -159,7 +256,7 @@ export function WorkspaceConsole({
 
   const visibleThreads = useMemo(() => {
     const q = mailQuery.trim().toLowerCase();
-    return threads.filter((t) => {
+    return localThreads.filter((t) => {
       if (mailFilter === "focused" && !FOCUSED_PRIORITIES.has(t.priority))
         return false;
       if (!q) return true;
@@ -170,11 +267,11 @@ export function WorkspaceConsole({
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threads, mailQuery, mailFilter]);
+  }, [localThreads, mailQuery, mailFilter]);
 
-  const active = threads.find((t) => t.id === selectedId) ?? threads[0];
-  const toggle = (id: PaneId) =>
-    setCollapsed((c) => ({ ...c, [id]: !c[id] }));
+  const active =
+    localThreads.find((t) => t.id === selectedId) ?? localThreads[0];
+  const toggle = (id: PaneId) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
   const now = useMemo(() => new Date(nowISO), [nowISO]);
 
@@ -182,10 +279,13 @@ export function WorkspaceConsole({
     const start = startOfWeek(now);
     return Array.from({ length: 7 }, (_, i) => {
       const day = addDays(start, i);
-      const dots = events.filter((e) => {
+      const dots = localEvents.filter((e) => {
         if (!e.start) return false;
         const d = new Date(e.start);
-        return !Number.isNaN(d.getTime()) && startOfDay(d).getTime() === day.getTime();
+        return (
+          !Number.isNaN(d.getTime()) &&
+          startOfDay(d).getTime() === day.getTime()
+        );
       }).length;
       return {
         label: day.toLocaleDateString("en-US", { weekday: "narrow" }),
@@ -194,16 +294,242 @@ export function WorkspaceConsole({
         today: startOfDay(day).getTime() === startOfDay(now).getTime(),
       };
     });
-  }, [events, now]);
+  }, [localEvents, now]);
 
   const agenda = useMemo(
     () =>
-      events
+      localEvents
         .filter((e) => e.start && new Date(e.start).getTime() >= now.getTime())
-        .sort((a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime())
+        .sort(
+          (a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime(),
+        )
         .slice(0, 5),
-    [events, now],
+    [localEvents, now],
   );
+
+  function parseRecipients(value: string) {
+    return value
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
+  }
+
+  function appendMessage(threadId: string, message: ThreadMessage) {
+    setLocalThreads((current) =>
+      current.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              from: message.from,
+              to: message.to ?? thread.to,
+              preview: message.preview,
+              body: message.body,
+              time: message.time,
+              priority: "OPEN",
+              messages: [...thread.messages, message],
+            }
+          : thread,
+      ),
+    );
+  }
+
+  function mapApiThread(thread: {
+    id: string;
+    from: string;
+    to: string | null;
+    subject: string;
+    preview: string;
+    body: string | null;
+    receivedAt: string | null;
+    labels: string[];
+    messages: Array<{
+      id: string;
+      from: string;
+      to: string | null;
+      body: string;
+      preview: string;
+      receivedAt: string | null;
+    }>;
+  }): Thread {
+    return {
+      id: thread.id,
+      from: thread.from,
+      to: thread.to,
+      subject: thread.subject,
+      preview: thread.preview,
+      body: thread.body ?? thread.preview,
+      time: formatThreadTime(thread.receivedAt),
+      priority: thread.labels.includes("UNREAD")
+        ? "NEW"
+        : thread.labels.includes("IMPORTANT")
+          ? "PRIORITY"
+          : "OPEN",
+      messages: thread.messages.map((message) => ({
+        id: message.id,
+        from: message.from,
+        to: message.to,
+        body: message.body,
+        preview: message.preview,
+        time: formatThreadTime(message.receivedAt),
+        receivedAt: message.receivedAt,
+      })),
+    };
+  }
+
+  async function loadMoreMail() {
+    if (!pageToken) return;
+    setPageBusy(true);
+    try {
+      const payload = await readJson<{
+        threads: Parameters<typeof mapApiThread>[0][];
+        nextPageToken: string | null;
+      }>(
+        await fetch(
+          `/api/inbox?maxResults=20&pageToken=${encodeURIComponent(pageToken)}`,
+        ),
+      );
+      setLocalThreads((current) => [
+        ...current,
+        ...payload.threads.map(mapApiThread),
+      ]);
+      setPageToken(payload.nextPageToken);
+    } finally {
+      setPageBusy(false);
+    }
+  }
+
+  async function sendReply() {
+    if (!active) return;
+    setReplyBusy(true);
+    setReplyStatus(null);
+    try {
+      const payload = await readJson<{
+        reply: {
+          id: string | null;
+          threadId: string;
+          from: string;
+          to: string[];
+          body: string;
+          sentAt: string;
+        };
+      }>(
+        await fetch("/api/koda/gmail/reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ threadId: active.id, body: replyText }),
+        }),
+      );
+      appendMessage(active.id, {
+        id: payload.reply.id ?? `sent-${Date.now()}`,
+        from: payload.reply.from,
+        to: payload.reply.to.join(", "),
+        body: payload.reply.body,
+        preview: payload.reply.body,
+        time: formatThreadTime(payload.reply.sentAt),
+        receivedAt: payload.reply.sentAt,
+      });
+      setReplyText("");
+      setReplyStatus("Reply sent.");
+    } catch (error) {
+      setReplyStatus(
+        error instanceof Error ? error.message : "Could not send reply.",
+      );
+    } finally {
+      setReplyBusy(false);
+    }
+  }
+
+  async function sendCompose() {
+    setComposeBusy(true);
+    setComposeStatus(null);
+    try {
+      const payload = await readJson<{
+        message: {
+          id: string | null;
+          threadId: string | null;
+          from: string;
+          to: string[];
+          subject: string;
+          body: string;
+          sentAt: string;
+        };
+      }>(
+        await fetch("/api/koda/gmail/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: parseRecipients(composeForm.to),
+            subject: composeForm.subject,
+            body: composeForm.body,
+          }),
+        }),
+      );
+      const threadId = payload.message.threadId ?? `sent-${Date.now()}`;
+      const sentMessage: ThreadMessage = {
+        id: payload.message.id ?? `${threadId}-message`,
+        from: payload.message.from,
+        to: payload.message.to.join(", "),
+        body: payload.message.body,
+        preview: payload.message.body,
+        time: formatThreadTime(payload.message.sentAt),
+        receivedAt: payload.message.sentAt,
+      };
+
+      setLocalThreads((current) => [
+        {
+          id: threadId,
+          from: payload.message.from,
+          to: payload.message.to.join(", "),
+          subject: payload.message.subject,
+          preview: payload.message.body,
+          body: payload.message.body,
+          time: sentMessage.time,
+          priority: "OPEN",
+          messages: [sentMessage],
+        },
+        ...current,
+      ]);
+      setSelectedId(threadId);
+      setComposeForm(defaultCompose());
+      setComposeOpen(false);
+      setComposeStatus(null);
+    } catch (error) {
+      setComposeStatus(
+        error instanceof Error ? error.message : "Could not send email.",
+      );
+    } finally {
+      setComposeBusy(false);
+    }
+  }
+
+  async function createQuickEvent() {
+    setEventBusy(true);
+    setEventStatus(null);
+    try {
+      const payload = await readJson<{ event: CalEvent }>(
+        await fetch("/api/koda/calendar/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: eventForm.title,
+            start: new Date(eventForm.start).toISOString(),
+            end: new Date(eventForm.end).toISOString(),
+            sendUpdates: "all",
+          }),
+        }),
+      );
+      setLocalEvents((current) => [...current, payload.event]);
+      setEventForm(defaultQuickEvent(now));
+      setEventOpen(false);
+      setEventStatus("Event created.");
+    } catch (error) {
+      setEventStatus(
+        error instanceof Error ? error.message : "Could not create event.",
+      );
+    } finally {
+      setEventBusy(false);
+    }
+  }
 
   const flex = (id: PaneId, open: string) =>
     collapsed[id] ? "lg:flex-none" : open;
@@ -222,9 +548,20 @@ export function WorkspaceConsole({
         >
           <PaneHeader
             title="Mail"
-            count={`${visibleThreads.length}`}
+            count={`${visibleThreads.length}/${localThreads.length}`}
             onCollapse={() => toggle("list")}
-          />
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setComposeOpen(true);
+                setComposeStatus(null);
+              }}
+              className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
+            >
+              Compose
+            </button>
+          </PaneHeader>
           <div className="space-y-2 border-b border-[var(--color-line)] px-3 py-2">
             <div className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5">
               <svg
@@ -284,7 +621,10 @@ export function WorkspaceConsole({
                 <button
                   key={thread.id}
                   type="button"
-                  onClick={() => setSelectedId(thread.id)}
+                  onClick={() => {
+                    setSelectedId(thread.id);
+                    setReplyStatus(null);
+                  }}
                   className={`block w-full px-3.5 py-3 text-left transition ${
                     isActive
                       ? "bg-[var(--color-panel-strong)]"
@@ -311,6 +651,18 @@ export function WorkspaceConsole({
                 </button>
               );
             })}
+            {pageToken && !mailQuery && (
+              <div className="p-3">
+                <button
+                  type="button"
+                  onClick={loadMoreMail}
+                  disabled={pageBusy}
+                  className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                >
+                  {pageBusy ? "Loading..." : "Load 20 more"}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -341,14 +693,52 @@ export function WorkspaceConsole({
                 {active?.subject}
               </h2>
               <p className="mt-1 text-[13px] text-[var(--color-text-soft)]">
-                {active?.from} · to shubham@koda.dev · {active?.time}
+                {active?.from}
+                {active?.to ? ` · to ${active.to}` : ""} · {active?.time}
               </p>
             </div>
 
-            <div className="email-md px-4 py-5 text-[14px] leading-7 text-[var(--color-text-muted)] sm:px-5">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {active?.body ?? active?.preview ?? ""}
-              </ReactMarkdown>
+            <div className="space-y-3 px-4 py-5 sm:px-5">
+              {(active?.messages.length
+                ? active.messages
+                : [
+                    {
+                      id: `${active?.id ?? "empty"}-fallback`,
+                      from: active?.from ?? "Unknown sender",
+                      to: active?.to ?? null,
+                      body: active?.body ?? active?.preview ?? "",
+                      preview: active?.preview ?? "",
+                      time: active?.time ?? "Recently",
+                      receivedAt: null,
+                    },
+                  ]
+              ).map((message) => (
+                <article
+                  key={message.id}
+                  className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)]"
+                >
+                  <div className="border-b border-[var(--color-line)] px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                        {message.from}
+                      </p>
+                      <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                        {message.time}
+                      </span>
+                    </div>
+                    {message.to && (
+                      <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-soft)]">
+                        to {message.to}
+                      </p>
+                    )}
+                  </div>
+                  <div className="email-md px-3 py-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.body}
+                    </ReactMarkdown>
+                  </div>
+                </article>
+              ))}
             </div>
 
             {active?.commitment && (
@@ -359,7 +749,7 @@ export function WorkspaceConsole({
                     Extracted commitment
                   </p>
                 </div>
-                <p className="mt-2.5 text-[14px] font-medium leading-6 text-[var(--color-text)]">
+                <p className="mt-2.5 text-[14px] leading-6 font-medium text-[var(--color-text)]">
                   {active.commitment.title}
                 </p>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
@@ -373,7 +763,9 @@ export function WorkspaceConsole({
                       <dt className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
                         {k}
                       </dt>
-                      <dd className="truncate text-[var(--color-text-muted)]">{v}</dd>
+                      <dd className="truncate text-[var(--color-text-muted)]">
+                        {v}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -395,6 +787,31 @@ export function WorkspaceConsole({
                 </div>
               </div>
             )}
+            <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3.5 sm:mx-5">
+              <p className="kicker">Reply from KODA</p>
+              <textarea
+                value={replyText}
+                onChange={(event) => setReplyText(event.target.value)}
+                placeholder="Write a reply..."
+                rows={4}
+                className="mt-3 w-full resize-none rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={sendReply}
+                  disabled={replyBusy || !replyText.trim()}
+                  className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+                >
+                  {replyBusy ? "Sending..." : "Send reply"}
+                </button>
+                {replyStatus && (
+                  <p className="text-right text-[12px] text-[var(--color-text-soft)]">
+                    {replyStatus}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -411,12 +828,18 @@ export function WorkspaceConsole({
         >
           <PaneHeader
             title="Calendar"
-            count={now.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+            count={now.toLocaleDateString("en-US", {
+              month: "short",
+              year: "numeric",
+            })}
             onCollapse={() => toggle("calendar")}
           >
             <button
               type="button"
-              onClick={openCommand}
+              onClick={() => {
+                setEventOpen((open) => !open);
+                setEventStatus(null);
+              }}
               className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
             >
               + New
@@ -459,6 +882,64 @@ export function WorkspaceConsole({
 
             {/* Agenda + linked deadline */}
             <div className="p-3">
+              {eventOpen && (
+                <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+                  <p className="kicker">Create event</p>
+                  <div className="mt-2 space-y-2">
+                    <input
+                      value={eventForm.title}
+                      onChange={(event) =>
+                        setEventForm((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                      placeholder="Title"
+                      className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text)] outline-none"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="datetime-local"
+                        value={eventForm.start}
+                        onChange={(event) =>
+                          setEventForm((current) => ({
+                            ...current,
+                            start: event.target.value,
+                          }))
+                        }
+                        className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[11px] text-[var(--color-text)] outline-none"
+                      />
+                      <input
+                        type="datetime-local"
+                        value={eventForm.end}
+                        onChange={(event) =>
+                          setEventForm((current) => ({
+                            ...current,
+                            end: event.target.value,
+                          }))
+                        }
+                        className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[11px] text-[var(--color-text)] outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={createQuickEvent}
+                      disabled={eventBusy || !eventForm.title.trim()}
+                      className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+                    >
+                      {eventBusy ? "Creating..." : "Create"}
+                    </button>
+                    {eventStatus && (
+                      <p className="text-right text-[12px] text-[var(--color-text-soft)]">
+                        {eventStatus}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {active?.commitment && (
                 <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3 py-2.5">
                   <p className="kicker text-[var(--color-accent)]">
@@ -493,8 +974,8 @@ export function WorkspaceConsole({
                           {item.title}
                         </p>
                         <p className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                          {d.toLocaleDateString("en-US", { weekday: "short" })} ·{" "}
-                          {item.allDay ? "All day" : fmtTime(d)}
+                          {d.toLocaleDateString("en-US", { weekday: "short" })}{" "}
+                          · {item.allDay ? "All day" : fmtTime(d)}
                         </p>
                       </div>
                     </div>
@@ -504,6 +985,82 @@ export function WorkspaceConsole({
             </div>
           </div>
         </section>
+      )}
+
+      {composeOpen && (
+        <div className="fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
+          <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2">
+            <p className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
+              New message
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setComposeOpen(false);
+                setComposeStatus(null);
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="divide-y divide-[var(--color-line)]">
+            <input
+              value={composeForm.to}
+              onChange={(event) =>
+                setComposeForm((current) => ({
+                  ...current,
+                  to: event.target.value,
+                }))
+              }
+              placeholder="Recipients"
+              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+            />
+            <input
+              value={composeForm.subject}
+              onChange={(event) =>
+                setComposeForm((current) => ({
+                  ...current,
+                  subject: event.target.value,
+                }))
+              }
+              placeholder="Subject"
+              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+            />
+          </div>
+          <textarea
+            value={composeForm.body}
+            onChange={(event) =>
+              setComposeForm((current) => ({
+                ...current,
+                body: event.target.value,
+              }))
+            }
+            rows={9}
+            placeholder="Write your email..."
+            className="w-full resize-none bg-transparent px-3 py-3 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+          />
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--color-line)] px-3 py-2">
+            <button
+              type="button"
+              onClick={sendCompose}
+              disabled={
+                composeBusy ||
+                parseRecipients(composeForm.to).length === 0 ||
+                !composeForm.subject.trim() ||
+                !composeForm.body.trim()
+              }
+              className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+            >
+              {composeBusy ? "Sending..." : "Send"}
+            </button>
+            {composeStatus && (
+              <p className="text-right text-[12px] text-[var(--color-text-soft)]">
+                {composeStatus}
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

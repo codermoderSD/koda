@@ -54,10 +54,15 @@ async function ensureIntegrationCredentials() {
 export async function ensureCorsairConnection(
   userId: string,
 ): Promise<ConnectionState> {
-  // Already seeded — cheap short-circuit on every workspace load.
+  // Already seeded — cheap short-circuit on every workspace load. Check both
+  // plugins; older sessions may have Gmail seeded while Calendar is still empty.
   try {
-    const existing = await corsair.withTenant(userId).gmail.keys.get_refresh_token();
-    if (existing) return "connected";
+    const client = corsair.withTenant(userId);
+    const [gmailToken, calendarToken] = await Promise.all([
+      client.gmail.keys.get_refresh_token(),
+      client.googlecalendar.keys.get_refresh_token(),
+    ]);
+    if (gmailToken && calendarToken) return "connected";
   } catch {
     // fall through and attempt to seed
   }
