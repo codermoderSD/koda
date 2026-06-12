@@ -1,8 +1,7 @@
 export const workspaceNav = [
-  { href: "/inbox", label: "Inbox", short: "01" },
+  { href: "/inbox", label: "Workspace", short: "01" },
   { href: "/commitments", label: "Commitments", short: "02" },
   { href: "/calendar", label: "Calendar", short: "03" },
-  { href: "/agent", label: "Agent", short: "04" },
 ] as const;
 
 export const inboxThreads = [
@@ -12,6 +11,14 @@ export const inboxThreads = [
     preview: "Can you send the pricing sheet before tomorrow's review?",
     priority: "URGENT",
     time: "9:42 AM",
+    body: "Hi Shubham,\n\nCan you send the Q3 pricing breakdown before tomorrow's review? If it helps, I can also share the notes from our last call so the numbers line up before we go in.\n\nWe should also lock a short prep block so we arrive with the updated figures ready.\n\nPriya",
+    commitment: {
+      title: "Send Q3 pricing breakdown before tomorrow's review.",
+      owner: "You",
+      counterparty: "Priya Shah",
+      deadline: "Tomorrow · 9:00 AM",
+      confidence: "High",
+    },
   },
   {
     from: "Northwind Legal",
@@ -19,6 +26,14 @@ export const inboxThreads = [
     preview: "We'll share the updated redlines by end of day.",
     priority: "WAITING ON",
     time: "8:15 AM",
+    body: "Shubham,\n\nThanks for the call. We'll share the updated MSA redlines by end of day so your team can review section 4 and the liability cap.\n\nBest,\nNorthwind Legal",
+    commitment: {
+      title: "Northwind to return revised MSA redlines.",
+      owner: "Northwind Legal",
+      counterparty: "You",
+      deadline: "2 days overdue",
+      confidence: "Medium",
+    },
   },
   {
     from: "Rohan Mehta",
@@ -26,6 +41,14 @@ export const inboxThreads = [
     preview: "Can we lock 9 AM and send the invite today?",
     priority: "NEEDS REPLY",
     time: "Yesterday",
+    body: "Hey — great chatting earlier. Can we lock 9 AM Thursday for coffee and send the invite today? Happy to come to your side of town.\n\nRohan",
+    commitment: {
+      title: "Create Thursday 9 AM coffee invite for Rohan.",
+      owner: "You",
+      counterparty: "Rohan Mehta",
+      deadline: "Thu · 9:00 AM",
+      confidence: "High",
+    },
   },
   {
     from: "Acme Procurement",
@@ -33,6 +56,14 @@ export const inboxThreads = [
     preview: "Sharing the signed order form — let us know next steps.",
     priority: "OPEN",
     time: "Tue",
+    body: "Hello,\n\nSharing the signed order form for the FY26 renewal. Let us know the next steps and timeline for countersignature.\n\nAcme Procurement",
+    commitment: {
+      title: "Acme to countersign FY26 order form.",
+      owner: "Acme",
+      counterparty: "You",
+      deadline: "Next Mon",
+      confidence: "Medium",
+    },
   },
   {
     from: "Dana Olsen",
@@ -40,6 +71,14 @@ export const inboxThreads = [
     preview: "Happy to connect you — are you free next week?",
     priority: "NEEDS REPLY",
     time: "Mon",
+    body: "Hi Shubham,\n\nHappy to make the intro to the partnerships team at Vela. Are you free for 30 minutes next week? I can loop them in once you send a couple of windows.\n\nDana",
+    commitment: {
+      title: "Reply to Dana with windows for Vela intro.",
+      owner: "You",
+      counterparty: "Dana Olsen",
+      deadline: "Fri · 12:00 PM",
+      confidence: "Medium",
+    },
   },
 ] as const;
 

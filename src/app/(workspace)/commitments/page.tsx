@@ -31,17 +31,11 @@ function Lane({
 export default function CommitmentsPage() {
   return (
     <div className="flex w-full flex-col gap-5 lg:h-full lg:min-h-0">
-      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div>
-          <p className="kicker">Commitments</p>
-          <h1 className="mt-1.5 text-xl font-medium tracking-tight text-[var(--color-text)] sm:text-2xl">
-            Who owes what
-          </h1>
-        </div>
-        <p className="max-w-sm text-[13px] leading-6 text-[var(--color-text-soft)] sm:text-right">
-          Promises extracted from your threads, tracked until they resolve.
-          Due-state visible at a glance.
-        </p>
+      <header>
+        <p className="kicker">Commitments</p>
+        <h1 className="mt-1.5 text-xl font-medium tracking-tight text-[var(--color-text)] sm:text-2xl">
+          Who owes what
+        </h1>
       </header>
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 xl:grid-cols-[1fr_1fr_280px]">

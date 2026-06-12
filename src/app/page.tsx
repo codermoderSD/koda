@@ -102,7 +102,7 @@ export default function Home() {
         <div className="grid min-h-[420px] grid-cols-1 md:grid-cols-[200px_1fr_220px]">
           {/* mini sidebar */}
           <div className="hidden border-r border-[var(--color-line)] p-3 md:block">
-            {["Inbox", "Commitments", "Calendar", "Agent"].map((item, i) => (
+            {["Workspace", "Commitments", "Calendar"].map((item, i) => (
               <div
                 key={item}
                 className={`flex items-center gap-2 rounded-[var(--radius)] px-2.5 py-2 text-[13px] ${

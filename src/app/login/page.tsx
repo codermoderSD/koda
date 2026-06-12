@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { getSession } from "~/server/better-auth/server";
 import { ThemeToggle } from "../_components/theme-toggle";
 import { SignInButton } from "./sign-in-button";
 
@@ -15,7 +17,10 @@ const scopes = [
   ["Identity", "Google account only — no passwords stored."],
 ] as const;
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await getSession();
+  if (session) redirect("/inbox");
+
   return (
     <main className="flex min-h-screen flex-col px-5 py-5 sm:px-6">
       <header className="flex items-center justify-between">
