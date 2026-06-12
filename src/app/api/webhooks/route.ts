@@ -2,6 +2,11 @@ import { processWebhook } from "corsair";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { corsair } from "~/server/corsair";
+import {
+  projectGmailWebhookEvent,
+  type GmailWebhookEvent,
+} from "~/server/koda/gmail-projection";
+import { DEFAULT_KODA_TENANT_ID } from "~/server/koda/tenant";
 
 export async function POST(request: NextRequest) {
   const headers: Record<string, string> = {};
@@ -9,16 +14,28 @@ export async function POST(request: NextRequest) {
     headers[key] = value;
   });
 
-  const body = request.headers.get("content-type")?.includes("application/json")
-    ? await request.json()
-    : await request.text();
+  const rawBody = await request.text();
+  const contentType = request.headers.get("content-type") ?? "";
+
+  let body: string | Record<string, unknown> = rawBody;
+  if (contentType.includes("application/json")) {
+    try {
+      body = JSON.parse(rawBody) as Record<string, unknown>;
+    } catch {
+      body = rawBody;
+    }
+  }
 
   // Include tenantId if you're using multi-tenancy
-  const tenantId = "shubham";
+  const tenantId = DEFAULT_KODA_TENANT_ID;
 
   const result = await processWebhook(corsair, headers, body, { tenantId });
 
   console.log("Plugin Processed", result.plugin, result.action);
+
+  if (result.plugin === "gmail" && result.response?.success && result.response.data) {
+    await projectGmailWebhookEvent(result.response.data as GmailWebhookEvent);
+  }
 
   // Build response headers example Asana X-Hook-Secret header
   // any/unknown cast needed since responseheaders is a newer field not yet in the installed type definitions

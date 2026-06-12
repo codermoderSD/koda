@@ -1,6 +1,126 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, Cambria, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo,
+    monospace;
+
+  /* Radii — restrained, operator-grade. No bubble cards. */
+  --radius-sm: 4px;
+  --radius: 7px;
+  --radius-lg: 10px;
+
+  /* Dark theme (primary) — near-black with cool undertone. */
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.12);
+  --color-surface: #0a0b0d;
+  --color-surface-2: #0e1013;
+  --color-surface-3: #15181c;
+  --color-panel: rgb(255 255 255 / 0.025);
+  --color-panel-strong: rgb(255 255 255 / 0.05);
+  --color-panel-elevated: #0e1013;
+  --color-text: #f2f4f7;
+  --color-text-muted: rgb(242 244 247 / 0.62);
+  --color-text-soft: rgb(242 244 247 / 0.4);
+  --color-accent: #6e8bff;
+  --color-accent-strong: #5b7bff;
+  --color-accent-soft: rgb(110 139 255 / 0.12);
+  --color-success: #4cc38a;
+  --color-success-soft: rgb(76 195 138 / 0.12);
+  --color-warning: #e8a35c;
+  --color-warning-soft: rgb(232 163 92 / 0.12);
+  --color-danger: #e5688a;
+  --color-danger-soft: rgb(229 104 138 / 0.12);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.22);
+}
+
+html {
+  background: var(--color-surface);
+  color: var(--color-text);
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-surface);
+  color: inherit;
+  font-feature-settings: "ss01", "cv01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+[data-theme="light"] {
+  --color-line: rgb(15 23 36 / 0.09);
+  --color-line-strong: rgb(15 23 36 / 0.16);
+  --color-surface: #f6f7f9;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #eef0f3;
+  --color-panel: rgb(14 20 31 / 0.025);
+  --color-panel-strong: rgb(14 20 31 / 0.05);
+  --color-panel-elevated: #ffffff;
+  --color-text: #11151c;
+  --color-text-muted: rgb(17 21 28 / 0.62);
+  --color-text-soft: rgb(17 21 28 / 0.42);
+  --color-accent: #3358ff;
+  --color-accent-strong: #2547ee;
+  --color-accent-soft: rgb(51 88 255 / 0.08);
+  --color-success: #1f8a5b;
+  --color-success-soft: rgb(31 138 91 / 0.1);
+  --color-warning: #b06a18;
+  --color-warning-soft: rgb(176 106 24 / 0.1);
+  --color-danger: #c43d63;
+  --color-danger-soft: rgb(196 61 99 / 0.1);
+  --shadow-soft: 0 1px 2px rgb(15 23 36 / 0.06), 0 8px 24px rgb(15 23 36 / 0.06);
+}
+
+[data-theme="light"] html,
+html[data-theme="light"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  color-scheme: light;
+}
+
+[data-theme="light"] body,
+html[data-theme="light"] body {
+  background: var(--color-surface);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+}
+
+/* Operator label — tiny, tracked, mono. The signature metadata style. */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+
+/* Thin custom scrollbars to keep the desktop-client feel. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
 }
