@@ -8,7 +8,7 @@ import { TRPCReactProvider } from "~/trpc/react";
 export const metadata: Metadata = {
   title: "KODA",
   description: "The email client that remembers what you promised.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: [{ rel: "icon", url: "/icon.svg", type: "image/svg+xml" }],
 };
 
 const dmSans = DM_Sans({

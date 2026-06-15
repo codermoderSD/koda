@@ -52,6 +52,22 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Global film grain — subtle texture across every surface. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="light"] body::after {
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+}
+
 [data-theme="light"] {
   --color-line: rgb(15 23 36 / 0.09);
   --color-line-strong: rgb(15 23 36 / 0.16);
@@ -102,6 +118,310 @@ button {
   background: var(--color-accent-soft);
 }
 
+/* ── Marketing surface: depth without leaving the operator-grade identity ── */
+
+/* Aurora glow backdrop — sits behind the hero, fixed, pointer-transparent. */
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+}
+.aurora::before {
+  top: -18%;
+  left: 50%;
+  width: 60vw;
+  height: 60vw;
+  max-width: 760px;
+  max-height: 760px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    circle at center,
+    rgb(110 139 255 / 0.55),
+    transparent 65%
+  );
+}
+.aurora::after {
+  top: 6%;
+  right: -10%;
+  width: 42vw;
+  height: 42vw;
+  max-width: 520px;
+  max-height: 520px;
+  background: radial-gradient(
+    circle at center,
+    rgb(76 195 138 / 0.32),
+    transparent 65%
+  );
+}
+[data-theme="light"] .aurora::before {
+  opacity: 0.35;
+  background: radial-gradient(
+    circle at center,
+    rgb(51 88 255 / 0.4),
+    transparent 65%
+  );
+}
+[data-theme="light"] .aurora::after {
+  opacity: 0.3;
+}
+
+/* Faint grid texture for hero/sections. */
+.grid-texture {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    #000 0%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    #000 0%,
+    transparent 75%
+  );
+}
+
+/* Display heading — large, tight, gradient-inked. */
+.display {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  background: linear-gradient(
+    180deg,
+    var(--color-text) 30%,
+    color-mix(in oklab, var(--color-text) 58%, transparent)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glass panel — elevated card with subtle inner light. */
+.glass {
+  background: color-mix(in oklab, var(--color-surface-2) 82%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04),
+    var(--shadow-soft);
+}
+[data-theme="light"] .glass {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    var(--shadow-soft);
+}
+
+/* Accent pill button glow. */
+.btn-glow {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 40%, transparent),
+    0 8px 30px color-mix(in oklab, var(--color-accent) 28%, transparent);
+}
+
+/* Entrance + idle motion. */
+@keyframes koda-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes koda-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.rise {
+  animation: koda-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.float {
+  animation: koda-float 7s ease-in-out infinite;
+}
+/* Popup / output entrance — quick spring-in. */
+@keyframes koda-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.pop {
+  animation: koda-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered children fade-up (output components). */
+.stagger > * {
+  animation: koda-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.stagger > *:nth-child(n + 5) {
+  animation-delay: 0.2s;
+}
+
+/* Skeleton shimmer sweep. */
+@keyframes koda-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-text) 9%, transparent),
+    transparent
+  );
+  animation: koda-shimmer 1.5s infinite;
+}
+
+/* Snappy press feedback. */
+.tap {
+  transition:
+    transform 0.12s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+.tap:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Expanding rings for the listening mic. */
+@keyframes koda-ping {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+.ping-ring::before,
+.ping-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--color-danger);
+  animation: koda-ping 1.5s ease-out infinite;
+  pointer-events: none;
+}
+.ping-ring::after {
+  animation-delay: 0.75s;
+}
+
+/* Live equalizer bars (voice capture). */
+@keyframes koda-eq {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eq-bar {
+  transform-origin: center;
+  animation: koda-eq 0.9s ease-in-out infinite;
+}
+
+@keyframes koda-dictation-orbit {
+  0% {
+    transform: translate3d(-12%, 14%, 0) scale(0.9);
+  }
+  50% {
+    transform: translate3d(18%, -10%, 0) scale(1.18);
+  }
+  100% {
+    transform: translate3d(-12%, 14%, 0) scale(0.9);
+  }
+}
+.dictation-blob {
+  position: absolute;
+  width: 110px;
+  height: 54px;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.34;
+  animation: koda-dictation-orbit 2.4s ease-in-out infinite;
+}
+.dictation-blob-a {
+  left: 4%;
+  top: 12%;
+  background: var(--color-accent);
+}
+.dictation-blob-b {
+  right: 8%;
+  bottom: 5%;
+  background: var(--color-success);
+  animation-delay: -0.8s;
+}
+.dictation-blob-c {
+  left: 42%;
+  top: -10%;
+  background: var(--color-warning);
+  animation-delay: -1.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .float,
+  .pop,
+  .tap,
+  .stagger > *,
+  .eq-bar,
+  .shimmer::after,
+  .ping-ring::before,
+  .ping-ring::after,
+  .dictation-blob,
+  .aurora::before,
+  .aurora::after {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Operator label — tiny, tracked, mono. The signature metadata style. */
 .kicker {
   font-family: var(--font-mono);
@@ -115,11 +435,15 @@ button {
 .email-md > * + * {
   margin-top: 0.85em;
 }
+.email-md {
+  overflow-wrap: anywhere;
+}
 .email-md a {
   color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .email-md strong {
   color: var(--color-text);

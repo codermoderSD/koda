@@ -35,11 +35,13 @@ export const auth = betterAuth({
     google: {
       clientId: env.BETTER_AUTH_GOOGLE_CLIENT_ID!,
       clientSecret: env.BETTER_AUTH_GOOGLE_CLIENT_SECRET!,
-      // Force a refresh token + the Gmail/Calendar scopes at the login consent so
-      // the tokens can be handed to Corsair (tenant = user id). Same Google OAuth
-      // client is shared with Corsair so the refresh token works there too.
+      // Request offline access so Google issues a refresh token the first time
+      // the user grants the Gmail/Calendar scopes (handed to Corsair, tenant =
+      // user id). Use "select_account" rather than "consent" so returning users
+      // are NOT forced through the consent screen on every login — Google keeps
+      // the original grant and the stored refresh token stays valid.
       accessType: "offline",
-      prompt: "consent",
+      prompt: "select_account",
       scope: [
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",

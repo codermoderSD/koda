@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 
 import { getSession } from "~/server/better-auth/server";
 import { ensureCorsairConnection } from "~/server/koda/connect";
+import { KodaLogo } from "../_components/koda-logo";
 import { SignInButton } from "../login/sign-in-button";
 import { ThemeToggle } from "../_components/theme-toggle";
 import { CommandBar } from "./_components/command-bar";
 import { MobileNav } from "./_components/mobile-nav";
 import { ShellNav } from "./_components/shell-nav";
 import { SignOutButton } from "./_components/sign-out-button";
+import { SyncButton } from "./_components/sync-button";
 
 function initials(value: string) {
   return value
@@ -32,8 +34,9 @@ export default async function WorkspaceLayout({
   const connection = await ensureCorsairConnection(user.id);
   if (connection === "needs-reconnect") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface)] px-5 text-[var(--color-text)]">
-        <div className="w-full max-w-sm rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-6">
+      <div className="relative isolate flex min-h-screen items-center justify-center bg-[var(--color-surface)] px-5 text-[var(--color-text)]">
+        <div className="aurora" aria-hidden />
+        <div className="glass w-full max-w-sm rounded-[var(--radius-lg)] p-6">
           <p className="kicker text-[var(--color-accent)]">Connect</p>
           <h1 className="mt-3 text-xl font-medium tracking-tight">
             Authorize Gmail &amp; Calendar
@@ -52,15 +55,14 @@ export default async function WorkspaceLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-surface)] text-[var(--color-text)]">
-      <aside className="hidden w-[256px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-2)] lg:flex">
+    <div className="relative isolate flex h-screen overflow-hidden bg-[var(--color-surface)] text-[var(--color-text)]">
+      <div className="aurora -z-10" aria-hidden />
+      <aside className="hidden w-[256px] shrink-0 flex-col border-r border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_88%,transparent)] backdrop-blur-xl lg:flex">
         <Link
           href="/"
           className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-4 py-4"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-text)] font-mono text-[13px] font-medium text-[var(--color-surface)]">
-            K
-          </span>
+          <KodaLogo markClassName="h-7 w-7 shrink-0" />
           <div className="leading-tight">
             <p className="text-[13px] font-medium tracking-tight text-[var(--color-text)]">
               KODA
@@ -72,67 +74,43 @@ export default async function WorkspaceLayout({
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <p className="kicker px-2 pb-2">Workspace</p>
           <ShellNav />
-
-          <div className="mt-6 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-              <p className="kicker text-[var(--color-text-muted)]">
-                Corsair · live
-              </p>
-            </div>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--color-text-soft)]">
-              Tenant-scoped Gmail &amp; Calendar sync, projected into KODA&apos;s
-              own operational tables.
-            </p>
-          </div>
         </div>
 
-        <div className="border-t border-[var(--color-line)] px-3 py-3">
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-3)] font-mono text-[10px] text-[var(--color-text-muted)]">
-                {avatar}
-              </span>
-              <div className="min-w-0 leading-tight">
-                <p className="truncate text-[12px] text-[var(--color-text)]">
-                  {displayName}
-                </p>
-                <p className="kicker mt-0.5">Gmail · Calendar</p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-0.5">
-              <ThemeToggle />
-              <SignOutButton />
-            </div>
-          </div>
+        <div className="border-t border-[var(--color-line)] p-3">
+          <SignOutButton full />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--color-line)] px-4 sm:px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2 lg:hidden"
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-text)] font-mono text-[13px] font-medium text-[var(--color-surface)]">
-              K
-            </span>
-            <span className="text-[14px] font-medium tracking-tight text-[var(--color-text)]">
-              KODA
-            </span>
+          <Link href="/" className="flex items-center gap-2 lg:hidden">
+            <KodaLogo
+              showWordmark
+              markClassName="h-7 w-7 shrink-0"
+              wordmarkClassName="text-[14px] font-medium tracking-tight text-[var(--color-text)]"
+            />
           </Link>
 
-          <span className="hidden items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2.5 py-1.5 text-[11px] text-[var(--color-text-muted)] lg:flex">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-success)]" />
-            Gmail &amp; Calendar synced
-          </span>
+          <SyncButton />
 
-          <div className="ml-auto lg:hidden">
+          <div className="ml-auto flex items-center gap-1.5">
+            <Link
+              href="/profile"
+              className="tap flex items-center gap-2 rounded-[var(--radius)] py-1 pr-2 pl-1 transition hover:bg-[var(--color-panel)]"
+              title="Profile & preferences"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-3)] font-mono text-[10px] text-[var(--color-text-muted)]">
+                {avatar}
+              </span>
+              <span className="hidden max-w-[140px] truncate text-[13px] text-[var(--color-text)] sm:inline">
+                {displayName}
+              </span>
+            </Link>
             <ThemeToggle />
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 pb-40 sm:px-6 sm:py-6 lg:flex lg:overflow-hidden lg:pb-20">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 lg:flex lg:pb-8">
           {children}
         </main>
       </div>
