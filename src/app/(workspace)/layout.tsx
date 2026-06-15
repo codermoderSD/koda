@@ -42,8 +42,9 @@ export default async function WorkspaceLayout({
             Authorize Gmail &amp; Calendar
           </h1>
           <p className="mt-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
-            KODA needs offline access to sync {displayName}&apos;s mail and
-            calendar. Continue with Google to grant it — you only do this once.
+            KODA needs a Google refresh token to sync {displayName}&apos;s mail
+            and calendar through Corsair. Continue with Google and approve
+            access to finish setup.
           </p>
           <SignInButton />
           <div className="mt-4 flex justify-end">

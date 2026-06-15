@@ -35,13 +35,11 @@ export const auth = betterAuth({
     google: {
       clientId: env.BETTER_AUTH_GOOGLE_CLIENT_ID!,
       clientSecret: env.BETTER_AUTH_GOOGLE_CLIENT_SECRET!,
-      // Request offline access so Google issues a refresh token the first time
-      // the user grants the Gmail/Calendar scopes (handed to Corsair, tenant =
-      // user id). Use "select_account" rather than "consent" so returning users
-      // are NOT forced through the consent screen on every login — Google keeps
-      // the original grant and the stored refresh token stays valid.
+      // KODA cannot use Gmail/Calendar without a refresh token because Corsair
+      // needs offline access. Google may omit refresh_token on silent/returning
+      // auth, so force consent whenever this OAuth flow is used.
       accessType: "offline",
-      prompt: "select_account",
+      prompt: "select_account consent",
       scope: [
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",
