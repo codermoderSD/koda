@@ -5,8 +5,10 @@ import { corsair } from "~/server/corsair";
 import { getTenantId } from "./tenant";
 
 type GmailPart = {
+  partId?: string;
+  filename?: string;
   mimeType?: string;
-  body?: { data?: string };
+  body?: { data?: string; attachmentId?: string };
   parts?: GmailPart[];
 };
 
@@ -37,6 +39,24 @@ type GmailThread = {
   messages?: GmailMessage[];
 };
 
+type GmailApiWithAttachments = {
+  messages?: {
+    attachments?: {
+      get(input: {
+        messageId: string;
+        id: string;
+      }): Promise<{ data?: string | null }>;
+    };
+  };
+};
+
+export type InboxImageAttachment = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  dataUrl: string;
+};
+
 export type InboxThread = {
   id: string;
   from: string;
@@ -58,6 +78,7 @@ export type InboxMessage = {
   body: string;
   preview: string;
   receivedAt: string | null;
+  attachments: InboxImageAttachment[];
 };
 
 export type InboxThreadPage = {
@@ -77,10 +98,19 @@ function readHeader(
 function decode(data: string | undefined): string | undefined {
   if (!data) return undefined;
   try {
-    return Buffer.from(data, "base64").toString("utf-8");
+    return Buffer.from(base64UrlToBase64(data), "base64").toString("utf-8");
   } catch {
     return undefined;
   }
+}
+
+function base64UrlToBase64(data: string) {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  return `${normalized}${"=".repeat((4 - (normalized.length % 4)) % 4)}`;
+}
+
+function imageDataUrl(mimeType: string, data: string) {
+  return `data:${mimeType};base64,${base64UrlToBase64(data)}`;
 }
 
 function collectByMime(
@@ -95,6 +125,58 @@ function collectByMime(
   }
   for (const child of part.parts ?? []) collectByMime(child, mime, out);
   return out;
+}
+
+function collectImageParts(
+  part: GmailPart | undefined,
+  out: GmailPart[] = [],
+): GmailPart[] {
+  if (!part) return out;
+  if (
+    part.mimeType?.startsWith("image/") &&
+    (part.body?.data || part.body?.attachmentId)
+  ) {
+    out.push(part);
+  }
+  for (const child of part.parts ?? []) collectImageParts(child, out);
+  return out;
+}
+
+async function imageAttachmentsFor(
+  api: unknown,
+  message: GmailMessage,
+): Promise<InboxImageAttachment[]> {
+  if (!message.id) return [];
+  const attachmentApi = (api as GmailApiWithAttachments).messages?.attachments;
+  const parts = collectImageParts(message.payload).slice(0, 6);
+
+  const attachments = await Promise.all(
+    parts.map(async (part, index) => {
+      const mimeType = part.mimeType ?? "image/png";
+      let data = part.body?.data;
+      const attachmentId = part.body?.attachmentId;
+
+      if (!data && attachmentId && attachmentApi) {
+        const response = await attachmentApi
+          .get({ messageId: message.id!, id: attachmentId })
+          .catch(() => null);
+        data = response?.data ?? undefined;
+      }
+
+      if (!data) return null;
+
+      return {
+        id: `${message.id}-${part.partId ?? index}`,
+        filename: part.filename?.trim() || `image-${index + 1}`,
+        mimeType,
+        dataUrl: imageDataUrl(mimeType, data),
+      };
+    }),
+  );
+
+  return attachments.filter((attachment): attachment is InboxImageAttachment =>
+    Boolean(attachment),
+  );
 }
 
 function stripHtml(value: string): string {
@@ -129,11 +211,18 @@ function bestBody(message: GmailMessage): string | undefined {
   return candidates.sort((a, b) => b.length - a.length)[0];
 }
 
-function normalizeThread(thread: GmailThread): InboxThread | null {
+async function normalizeThread(
+  thread: GmailThread,
+  api: unknown,
+): Promise<InboxThread | null> {
   if (!thread.id) return null;
 
   const lastMessage = thread.messages?.at(-1);
-  const messages = (thread.messages ?? []).flatMap(normalizeMessage);
+  const messages = (
+    await Promise.all(
+      (thread.messages ?? []).map((message) => normalizeMessage(message, api)),
+    )
+  ).flat();
   const subject =
     lastMessage?.subject ??
     readHeader(lastMessage, "subject") ??
@@ -161,7 +250,10 @@ function normalizeThread(thread: GmailThread): InboxThread | null {
   };
 }
 
-function normalizeMessage(message: GmailMessage): InboxMessage[] {
+async function normalizeMessage(
+  message: GmailMessage,
+  api: unknown,
+): Promise<InboxMessage[]> {
   if (!message.id) return [];
 
   const subject =
@@ -170,6 +262,7 @@ function normalizeMessage(message: GmailMessage): InboxMessage[] {
   const to = message.to ?? readHeader(message, "to") ?? null;
   const preview = message.snippet ?? "No preview available";
   const body = bestBody(message) || preview;
+  const attachments = await imageAttachmentsFor(api, message);
 
   return [
     {
@@ -180,6 +273,7 @@ function normalizeMessage(message: GmailMessage): InboxMessage[] {
       body,
       preview,
       receivedAt: message.internalDate ?? null,
+      attachments,
     },
   ];
 }
@@ -208,7 +302,7 @@ export async function getInboxThread(
       id,
       format: "full",
     });
-    return normalizeThread(thread);
+    return normalizeThread(thread, gmail.api);
   } catch {
     return null;
   }
@@ -248,12 +342,14 @@ export async function getInboxThreadPage(options?: {
       }),
     );
 
-    const threads = detailedThreads.flatMap((thread) => {
-      if (!thread) return [];
-
-      const normalized = normalizeThread(thread);
-      return normalized ? [normalized] : [];
-    });
+    const normalizedThreads = await Promise.all(
+      detailedThreads.map((thread) =>
+        thread ? normalizeThread(thread, gmail.api) : null,
+      ),
+    );
+    const threads = normalizedThreads.filter((thread): thread is InboxThread =>
+      Boolean(thread),
+    );
 
     return {
       threads,

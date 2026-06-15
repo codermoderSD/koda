@@ -1,3 +1,4 @@
+import { getSession } from "~/server/better-auth/server";
 import { getCalendarWindow } from "~/server/koda/calendar";
 import {
   getInboxThread,
@@ -105,6 +106,7 @@ export function toConsoleThread(
       preview: message.preview,
       time: formatReceivedAt(message.receivedAt),
       receivedAt: message.receivedAt,
+      attachments: message.attachments,
     })),
   };
 }
@@ -119,6 +121,11 @@ export async function InboxWorkspace({
   initialTab?: "focused" | "all" | "search";
 }) {
   const now = new Date();
+  const session = await getSession();
+  const firstName =
+    session?.user.name?.trim().split(/\s+/)[0] ??
+    session?.user.email?.split("@")[0] ??
+    "there";
   const normalizedSearchQuery = normalizeInboxSearchQuery(searchQuery);
   const normalizedInitialTab =
     initialTab === "search" && !normalizedSearchQuery ? undefined : initialTab;
@@ -168,6 +175,7 @@ export async function InboxWorkspace({
             preview: thread.preview,
             time: thread.time,
             receivedAt: null,
+            attachments: [],
           },
         ],
       }));
@@ -178,10 +186,13 @@ export async function InboxWorkspace({
   return (
     <div className="flex w-full flex-col gap-4 lg:h-full lg:min-h-0">
       <header>
-        <p className="kicker">Workspace</p>
-        <h1 className="mt-1.5 text-xl font-medium tracking-tight text-[var(--color-text)] sm:text-2xl">
-          Mail &amp; calendar, one surface
+        <p className="kicker text-[var(--color-accent)]">Workspace</p>
+        <h1 className="display mt-1.5 text-2xl sm:text-3xl">
+          Hello, {firstName}
         </h1>
+        <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
+          Mail &amp; calendar, one surface.
+        </p>
       </header>
 
       <div className="lg:min-h-0 lg:flex-1">

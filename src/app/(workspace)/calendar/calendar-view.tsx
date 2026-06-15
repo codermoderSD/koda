@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 
+import { DictationButton } from "../_components/dictation-button";
+
 export type CalEvent = {
   id: string;
   title: string;
@@ -520,9 +522,7 @@ export function CalendarView({
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-medium tracking-tight text-[var(--color-text)] sm:text-2xl">
-            {title}
-          </h1>
+          <h1 className="display text-xl sm:text-2xl">{title}</h1>
           <div className="flex items-center gap-1">
             <button
               onClick={() => shift(-1)}
@@ -625,9 +625,25 @@ export function CalendarView({
             <p className="kicker">Up next</p>
             <div className="mt-3 space-y-1">
               {upNext.length === 0 && (
-                <p className="px-1 py-2 text-[13px] text-[var(--color-text-soft)]">
-                  Nothing scheduled ahead.
-                </p>
+                <div className="flex flex-col items-center px-1 py-6 text-center">
+                  <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] text-[var(--color-text-soft)]">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3.5" y="5" width="17" height="15" rx="2" />
+                      <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+                    </svg>
+                  </span>
+                  <p className="text-[12px] text-[var(--color-text-soft)]">
+                    Nothing scheduled ahead.
+                  </p>
+                </div>
               )}
               {upNext.map((item) => {
                 const d = new Date(item.start!);
@@ -705,7 +721,7 @@ function EventDialog({
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
-      <div className="relative z-10 max-h-[calc(100vh-48px)] w-[min(560px,calc(100vw-32px))] overflow-y-auto">
+      <div className="pop relative z-10 max-h-[calc(100vh-48px)] w-[min(560px,calc(100vw-32px))] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -813,15 +829,29 @@ function EventEditor({
           placeholder="Attendees, comma separated"
           className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
         />
-        <textarea
-          value={form.description}
-          onChange={(e) =>
-            setForm((current) => ({ ...current, description: e.target.value }))
-          }
-          placeholder="Description"
-          rows={3}
-          className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none"
-        />
+        <div className="relative">
+          <textarea
+            value={form.description}
+            onChange={(e) =>
+              setForm((current) => ({
+                ...current,
+                description: e.target.value,
+              }))
+            }
+            placeholder="Description"
+            rows={3}
+            className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2 pr-11 text-[13px] text-[var(--color-text)] outline-none"
+          />
+          <DictationButton
+            value={form.description}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, description: value }))
+            }
+            onSubmit={onSave}
+            disabled={busy}
+            className="absolute top-2 right-2"
+          />
+        </div>
       </div>
       {status && (
         <p className="mt-3 text-[12px] text-[var(--color-text-soft)]">

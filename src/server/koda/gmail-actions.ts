@@ -27,6 +27,18 @@ type GmailThread = {
   messages?: GmailMessage[];
 };
 
+type GmailDraftsApi = {
+  drafts?: {
+    create(input: { message: { raw: string } }): Promise<{
+      id?: string | null;
+      message?: {
+        id?: string | null;
+        threadId?: string | null;
+      };
+    }>;
+  };
+};
+
 export type GmailReplyResult = {
   id: string | null;
   threadId: string;
@@ -47,6 +59,23 @@ export type GmailSendResult = {
   sentAt: string;
 };
 
+export type GmailAttachment = {
+  filename: string;
+  mimeType: string;
+  data: string;
+};
+
+export type GmailDraftResult = {
+  id: string | null;
+  messageId: string | null;
+  threadId: string | null;
+  from: string;
+  to: string[];
+  subject: string;
+  body: string;
+  savedAt: string;
+};
+
 function readHeader(message: GmailMessage | undefined, name: string) {
   const normalizedName = name.toLowerCase();
   if (normalizedName === "subject" && message?.subject) return message.subject;
@@ -61,6 +90,10 @@ function readHeader(message: GmailMessage | undefined, name: string) {
 
 function cleanHeader(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+function cleanFilename(value: string) {
+  return cleanHeader(value).replace(/"/g, "'");
 }
 
 function extractEmail(value: string) {
@@ -146,17 +179,54 @@ function makePlainReply({
   return `${headers.join("\r\n")}\r\n\r\n${body.trim()}\r\n`;
 }
 
-function makePlainMessage({
+function encodeAttachmentData(value: string) {
+  const base64 = value.includes(",") ? value.split(",").at(-1)! : value;
+  return base64.replace(/(.{76})/g, "$1\r\n");
+}
+
+function makeMessage({
   from,
   to,
   subject,
   body,
+  attachments = [],
 }: {
   from: string;
   to: string;
   subject: string;
   body: string;
+  attachments?: GmailAttachment[];
 }) {
+  if (attachments.length > 0) {
+    const boundary = `koda_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const headers = [
+      `From: ${cleanHeader(from)}`,
+      `To: ${cleanHeader(to)}`,
+      `Subject: ${cleanHeader(subject)}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    ];
+    const parts = [
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      body.trim(),
+      ...attachments.flatMap((attachment) => [
+        `--${boundary}`,
+        `Content-Type: ${cleanHeader(attachment.mimeType)}; name="${cleanFilename(attachment.filename)}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${cleanFilename(attachment.filename)}"`,
+        "",
+        encodeAttachmentData(attachment.data),
+      ]),
+      `--${boundary}--`,
+      "",
+    ];
+
+    return `${headers.join("\r\n")}\r\n\r\n${parts.join("\r\n")}`;
+  }
+
   const headers = [
     `From: ${cleanHeader(from)}`,
     `To: ${cleanHeader(to)}`,
@@ -227,6 +297,7 @@ export async function sendEmail(input: {
   to: string[];
   subject: string;
   body: string;
+  attachments?: GmailAttachment[];
   tenantId?: string;
 }): Promise<GmailSendResult> {
   const recipients = input.to
@@ -247,11 +318,12 @@ export async function sendEmail(input: {
   const tenantId = input.tenantId ?? (await getTenantId());
   const gmail = corsair.withTenant(tenantId).gmail;
   const raw = encodeBase64Url(
-    makePlainMessage({
+    makeMessage({
       from,
       to: recipients.join(", "),
       subject,
       body,
+      attachments: input.attachments,
     }),
   );
 
@@ -264,5 +336,60 @@ export async function sendEmail(input: {
     subject,
     body,
     sentAt: new Date().toISOString(),
+  };
+}
+
+export async function saveEmailDraft(input: {
+  to: string[];
+  subject: string;
+  body: string;
+  attachments?: GmailAttachment[];
+  tenantId?: string;
+}): Promise<GmailDraftResult> {
+  const recipients = input.to
+    .map((value) => cleanHeader(value))
+    .filter(Boolean);
+  const subject = cleanHeader(input.subject.trim());
+  const body = input.body.trim();
+
+  if (recipients.length === 0)
+    throw new Error("At least one recipient is required.");
+  if (!subject) throw new Error("Subject is required.");
+  if (!body) throw new Error("Message body is required.");
+
+  const session = await getSession();
+  const from = session?.user.email;
+  if (!from) throw new Error("You must be signed in to save a draft.");
+
+  const tenantId = input.tenantId ?? (await getTenantId());
+  const gmail = corsair.withTenant(tenantId).gmail;
+  const raw = encodeBase64Url(
+    makeMessage({
+      from,
+      to: recipients.join(", "),
+      subject,
+      body,
+      attachments: input.attachments,
+    }),
+  );
+
+  const draftsApi = (gmail.api as typeof gmail.api & GmailDraftsApi).drafts;
+  if (!draftsApi) {
+    throw new Error("Gmail draft creation is not available.");
+  }
+
+  const draft = await draftsApi.create({
+    message: { raw },
+  });
+
+  return {
+    id: draft.id ?? null,
+    messageId: draft.message?.id ?? null,
+    threadId: draft.message?.threadId ?? null,
+    from,
+    to: recipients,
+    subject,
+    body,
+    savedAt: new Date().toISOString(),
   };
 }

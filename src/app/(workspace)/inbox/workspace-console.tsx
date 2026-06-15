@@ -12,6 +12,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { DictationButton } from "../_components/dictation-button";
+import { KodaLogo } from "../../_components/koda-logo";
 import type { CalEvent } from "../calendar/calendar-view";
 
 export type Thread = {
@@ -31,6 +33,13 @@ export type Thread = {
     deadline: string;
     confidence: string;
   };
+};
+
+type ThreadImageAttachment = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  dataUrl: string;
 };
 
 type KodaEmailSearchResults = {
@@ -60,6 +69,7 @@ type ThreadMessage = {
   preview: string;
   time: string;
   receivedAt: string | null;
+  attachments?: ThreadImageAttachment[];
 };
 
 type QuickEventForm = {
@@ -77,6 +87,15 @@ type ComposeForm = {
   body: string;
 };
 
+type ComposeAttachment = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  data: string;
+  previewUrl: string;
+  size: number;
+};
+
 type KodaDraftReplyResponse = {
   status?: string;
   message?: string;
@@ -91,6 +110,17 @@ type KodaDraftReplyResponse = {
     | { type: string; [key: string]: unknown }
   >;
   error?: string;
+};
+
+const MAX_COMPOSE_IMAGES = 4;
+const MAX_COMPOSE_IMAGE_BYTES = 5 * 1024 * 1024;
+
+type FreeSlot = {
+  start: string;
+  end: string;
+  localStart: string;
+  localEnd: string;
+  label: string;
 };
 
 const priorityTone: Record<string, string> = {
@@ -148,6 +178,23 @@ function defaultQuickEvent(now: Date): QuickEventForm {
 
 function defaultCompose(): ComposeForm {
   return { to: "", subject: "", body: "" };
+}
+
+function formatBytes(value: number) {
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Could not read image."));
+    };
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function formatThreadTime(value: string | null) {
@@ -278,18 +325,29 @@ function QuickEventComposer({
           className={fieldClass}
         />
       </div>
-      <textarea
-        value={form.description}
-        onChange={(event) =>
-          setForm((current) => ({
-            ...current,
-            description: event.target.value,
-          }))
-        }
-        rows={2}
-        placeholder="Description"
-        className="mt-2 w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-2 text-[13px] leading-5 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
-      />
+      <div className="relative mt-2">
+        <textarea
+          value={form.description}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              description: event.target.value,
+            }))
+          }
+          rows={2}
+          placeholder="Description"
+          className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-2 pr-11 text-[13px] leading-5 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+        />
+        <DictationButton
+          value={form.description}
+          onChange={(value) =>
+            setForm((current) => ({ ...current, description: value }))
+          }
+          onSubmit={onCreate}
+          disabled={busy}
+          className="absolute top-2 right-2"
+        />
+      </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -317,6 +375,69 @@ function normalizeLocalEventTime(value: string) {
   return value.length === 16 ? `${value}:00` : value;
 }
 
+function extractHeaderEmail(value: string | null | undefined) {
+  if (!value) return null;
+  const match = /<([^>]+)>/.exec(value);
+  const email = (match?.[1] ?? value.split(/\s+/).at(-1) ?? value)
+    .replace(/[<>"']/g, "")
+    .trim()
+    .toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+function splitHeaderEmails(value: string | null | undefined) {
+  return (value ?? "")
+    .split(",")
+    .map((part) => extractHeaderEmail(part))
+    .filter((email): email is string => Boolean(email));
+}
+
+function cleanSubjectForMeeting(subject: string) {
+  return subject.replace(/^(\s*(re|fwd):\s*)+/i, "").trim() || "Meeting";
+}
+
+function senderDisplayName(value: string | null | undefined) {
+  if (!value) return "";
+  const quoted = /^\s*"?([^"<]+?)"?\s*</.exec(value);
+  const name = quoted?.[1]?.trim();
+  if (name) return name;
+  return value.replace(/[<>]/g, "").trim();
+}
+
+function senderInitials(value: string | null | undefined) {
+  const name = senderDisplayName(value);
+  const letters = name
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return letters || "?";
+}
+
+function chooseThreadCounterparty(thread: Thread) {
+  const firstFrom = extractHeaderEmail(thread.messages.at(0)?.from);
+  const lastFrom = extractHeaderEmail(thread.messages.at(-1)?.from);
+  if (firstFrom && lastFrom && firstFrom !== lastFrom) return firstFrom;
+
+  const emails = thread.messages.flatMap((message) => [
+    ...splitHeaderEmails(message.from),
+    ...splitHeaderEmails(message.to),
+  ]);
+  const unique = [...new Set(emails)];
+  return unique.find((email) => email !== lastFrom) ?? unique[0] ?? null;
+}
+
+function threadMeetingDescription(thread: Thread) {
+  const latest = thread.messages.at(-1);
+  return [
+    `Scheduled from Gmail thread: ${thread.subject}`,
+    latest?.body ? `Latest message: ${latest.body.slice(0, 600)}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 type PaneId = "list" | "detail" | "calendar";
 
 function CollapsedRail({
@@ -330,9 +451,19 @@ function CollapsedRail({
     <button
       type="button"
       onClick={onExpand}
+      aria-label={`Expand ${title}`}
       className="flex shrink-0 items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[var(--color-text-soft)] transition hover:text-[var(--color-text)] lg:h-full lg:w-11 lg:flex-col lg:justify-start lg:px-0 lg:py-3"
     >
-      <span className="font-mono text-[12px]">⊕</span>
+      <svg
+        viewBox="0 0 16 16"
+        className="h-3.5 w-3.5 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      >
+        <path d="M8 3.5v9M3.5 8h9" />
+      </svg>
       <span className="kicker lg:rotate-180 lg:[writing-mode:vertical-rl]">
         {title}
       </span>
@@ -371,7 +502,16 @@ function PaneHeader({
           aria-label={`Collapse ${title}`}
           className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
         >
-          ⊟
+          <svg
+            viewBox="0 0 16 16"
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          >
+            <path d="M3.5 8h9" />
+          </svg>
         </button>
       </div>
     </div>
@@ -432,12 +572,20 @@ export function WorkspaceConsole({
   );
   const [composeStatus, setComposeStatus] = useState<string | null>(null);
   const [composeBusy, setComposeBusy] = useState(false);
+  const [composeDraftBusy, setComposeDraftBusy] = useState(false);
+  const [composeAttachments, setComposeAttachments] = useState<
+    ComposeAttachment[]
+  >([]);
+  const composeAttachmentsRef = useRef<ComposeAttachment[]>([]);
   const [replyText, setReplyText] = useState("");
   const [replyStatus, setReplyStatus] = useState<string | null>(null);
   const [replyBusy, setReplyBusy] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [commitmentBusy, setCommitmentBusy] = useState(false);
   const [commitmentStatus, setCommitmentStatus] = useState<string | null>(null);
+  const [scheduleSlots, setScheduleSlots] = useState<FreeSlot[]>([]);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleStatus, setScheduleStatus] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
   const [eventForm, setEventForm] = useState<QuickEventForm>(() =>
     defaultQuickEvent(new Date(nowISO)),
@@ -501,6 +649,12 @@ export function WorkspaceConsole({
   }, [selectedThreadId]);
 
   useEffect(() => {
+    setScheduleSlots([]);
+    setScheduleStatus(null);
+    setCommitmentStatus(null);
+  }, [selectedId]);
+
+  useEffect(() => {
     setLocalSearchThreads(searchThreads);
     setSearchPageToken(searchNextPageToken);
     setMailQuery(searchQuery);
@@ -517,6 +671,19 @@ export function WorkspaceConsole({
   useEffect(() => {
     setLocalEvents(events);
   }, [events]);
+
+  useEffect(() => {
+    composeAttachmentsRef.current = composeAttachments;
+  }, [composeAttachments]);
+
+  useEffect(
+    () => () => {
+      composeAttachmentsRef.current.forEach((attachment) => {
+        URL.revokeObjectURL(attachment.previewUrl);
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     function refreshData() {
@@ -626,6 +793,75 @@ export function WorkspaceConsole({
       .filter(Boolean);
   }
 
+  function composeAttachmentPayload() {
+    return composeAttachments.map(({ filename, mimeType, data }) => ({
+      filename,
+      mimeType,
+      data,
+    }));
+  }
+
+  function clearComposeAttachments() {
+    setComposeAttachments((current) => {
+      current.forEach((attachment) => {
+        URL.revokeObjectURL(attachment.previewUrl);
+      });
+      return [];
+    });
+  }
+
+  function removeComposeAttachment(id: string) {
+    setComposeAttachments((current) => {
+      const attachment = current.find((item) => item.id === id);
+      if (attachment) URL.revokeObjectURL(attachment.previewUrl);
+      return current.filter((item) => item.id !== id);
+    });
+  }
+
+  async function addComposeImages(files: FileList | null) {
+    if (!files?.length) return;
+    const availableSlots = MAX_COMPOSE_IMAGES - composeAttachments.length;
+    if (availableSlots <= 0) {
+      setComposeStatus(`You can attach up to ${MAX_COMPOSE_IMAGES} images.`);
+      return;
+    }
+
+    const images = Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, availableSlots);
+    const tooLarge = images.find((file) => file.size > MAX_COMPOSE_IMAGE_BYTES);
+    if (tooLarge) {
+      setComposeStatus(`${tooLarge.name} is larger than 5 MB.`);
+      return;
+    }
+    if (images.length === 0) {
+      setComposeStatus("Choose an image file to attach.");
+      return;
+    }
+
+    try {
+      const attachments = await Promise.all(
+        images.map(async (file) => ({
+          id:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          data: await fileToDataUrl(file),
+          previewUrl: URL.createObjectURL(file),
+          size: file.size,
+        })),
+      );
+      setComposeAttachments((current) => [...current, ...attachments]);
+      setComposeStatus(null);
+    } catch (error) {
+      setComposeStatus(
+        error instanceof Error ? error.message : "Could not attach image.",
+      );
+    }
+  }
+
   function appendMessage(threadId: string, message: ThreadMessage) {
     setLocalThreads((current) =>
       current.map((thread) =>
@@ -706,6 +942,7 @@ export function WorkspaceConsole({
       body: string;
       preview: string;
       receivedAt: string | null;
+      attachments?: ThreadImageAttachment[];
     }>;
   }): Thread {
     return {
@@ -729,6 +966,7 @@ export function WorkspaceConsole({
         preview: message.preview,
         time: formatThreadTime(message.receivedAt),
         receivedAt: message.receivedAt,
+        attachments: message.attachments ?? [],
       })),
     };
   }
@@ -880,6 +1118,97 @@ export function WorkspaceConsole({
     }
   }
 
+  async function suggestScheduleSlots() {
+    if (!active) return;
+    const attendee = chooseThreadCounterparty(active);
+    if (!attendee) {
+      setScheduleStatus("Could not determine who to invite from this thread.");
+      return;
+    }
+
+    setScheduleBusy(true);
+    setScheduleStatus(null);
+    setScheduleSlots([]);
+    try {
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const payload = await readJson<{ slots: FreeSlot[] }>(
+        await fetch("/api/koda/calendar/free-slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            durationMinutes: 30,
+            horizonDays: 7,
+            timeZone,
+            maxResults: 3,
+          }),
+        }),
+      );
+      setScheduleSlots(payload.slots);
+      setScheduleStatus(
+        payload.slots.length > 0
+          ? `Pick a time to invite ${attendee}.`
+          : "No free 30-minute slots found this week.",
+      );
+    } catch (error) {
+      setScheduleStatus(
+        error instanceof Error ? error.message : "Could not find free slots.",
+      );
+    } finally {
+      setScheduleBusy(false);
+    }
+  }
+
+  async function scheduleThreadMeeting(slot: FreeSlot) {
+    if (!active) return;
+    const attendee = chooseThreadCounterparty(active);
+    if (!attendee) {
+      setScheduleStatus("Could not determine who to invite from this thread.");
+      return;
+    }
+
+    setScheduleBusy(true);
+    setScheduleStatus(null);
+    try {
+      const title = `Meeting: ${cleanSubjectForMeeting(active.subject)}`;
+      const payload = await readJson<{ event: CalEvent }>(
+        await fetch("/api/koda/calendar/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            start: slot.localStart,
+            end: slot.localEnd,
+            attendees: [attendee],
+            description: threadMeetingDescription(active),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            sendUpdates: "all",
+          }),
+        }),
+      );
+      setLocalEvents((current) => [...current, payload.event]);
+      setScheduleSlots([]);
+      setScheduleStatus(`Created ${title} for ${slot.label}.`);
+      setReplyText(
+        [
+          `I scheduled a 30-minute meeting for ${slot.label}.`,
+          "I sent the calendar invite as well.",
+          "",
+          "Looking forward to discussing this.",
+        ].join("\n"),
+      );
+      setReplyStatus(`Drafted a reply to ${attendee}. Review before sending.`);
+      window.dispatchEvent(new Event("koda:data-refresh"));
+    } catch (error) {
+      setScheduleStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not schedule this meeting.",
+      );
+    } finally {
+      setScheduleBusy(false);
+    }
+  }
+
   async function sendReply() {
     if (!active) return;
     setReplyBusy(true);
@@ -944,10 +1273,17 @@ export function WorkspaceConsole({
             to: parseRecipients(composeForm.to),
             subject: composeForm.subject,
             body: composeForm.body,
+            attachments: composeAttachmentPayload(),
           }),
         }),
       );
       const threadId = payload.message.threadId ?? `sent-${Date.now()}`;
+      const sentAttachments = composeAttachments.map((attachment) => ({
+        id: attachment.id,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        dataUrl: attachment.data,
+      }));
       const sentMessage: ThreadMessage = {
         id: payload.message.id ?? `${threadId}-message`,
         from: payload.message.from,
@@ -956,6 +1292,7 @@ export function WorkspaceConsole({
         preview: payload.message.body,
         time: formatThreadTime(payload.message.sentAt),
         receivedAt: payload.message.sentAt,
+        attachments: sentAttachments,
       };
 
       setLocalThreads((current) => [
@@ -974,6 +1311,7 @@ export function WorkspaceConsole({
       ]);
       setSelectedId(threadId);
       setComposeForm(defaultCompose());
+      clearComposeAttachments();
       setComposeOpen(false);
       setComposeStatus(null);
       window.dispatchEvent(new Event("koda:data-refresh"));
@@ -983,6 +1321,43 @@ export function WorkspaceConsole({
       );
     } finally {
       setComposeBusy(false);
+    }
+  }
+
+  async function saveComposeDraft() {
+    setComposeDraftBusy(true);
+    setComposeStatus(null);
+    try {
+      const payload = await readJson<{
+        draft: {
+          id: string | null;
+          messageId: string | null;
+          threadId: string | null;
+          savedAt: string;
+        };
+      }>(
+        await fetch("/api/koda/gmail/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: parseRecipients(composeForm.to),
+            subject: composeForm.subject,
+            body: composeForm.body,
+            attachments: composeAttachmentPayload(),
+          }),
+        }),
+      );
+      setComposeStatus(
+        payload.draft.id
+          ? `Draft saved to Gmail at ${formatThreadTime(payload.draft.savedAt)}.`
+          : "Draft saved to Gmail.",
+      );
+    } catch (error) {
+      setComposeStatus(
+        error instanceof Error ? error.message : "Could not save draft.",
+      );
+    } finally {
+      setComposeDraftBusy(false);
     }
   }
 
@@ -1087,9 +1462,19 @@ export function WorkspaceConsole({
                     setMailQuery("");
                     if (mailFilter === "search") router.push("/inbox");
                   }}
-                  className="shrink-0 text-[12px] text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
+                  aria-label="Clear search"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
                 >
-                  ✕
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  >
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
                 </button>
               )}
               <button
@@ -1184,7 +1569,7 @@ export function WorkspaceConsole({
                         : normalThreadUrl(thread.id, mailFilter),
                     );
                   }}
-                  className={`block w-full border-l-2 px-3.5 py-3 text-left transition ${
+                  className={`flex w-full gap-3 border-l-2 px-3.5 py-3 text-left transition ${
                     isActive
                       ? "border-l-transparent bg-[var(--color-panel-strong)]"
                       : isHighlighted
@@ -1192,22 +1577,27 @@ export function WorkspaceConsole({
                         : "border-l-transparent hover:bg-[var(--color-panel)]"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                      {thread.from}
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
+                    {senderInitials(thread.from)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                        {senderDisplayName(thread.from) || thread.from}
+                      </p>
+                      <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                        {thread.time}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
+                      {thread.subject}
                     </p>
-                    <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                      {thread.time}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
-                    {thread.subject}
-                  </p>
-                  <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
-                    {thread.preview}
-                  </p>
-                  <div className="mt-2">
-                    <Tag label={thread.priority} />
+                    <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
+                      {thread.preview}
+                    </p>
+                    <div className="mt-2">
+                      <Tag label={thread.priority} />
+                    </div>
                   </div>
                 </button>
               );
@@ -1258,6 +1648,20 @@ export function WorkspaceConsole({
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {!active ? (
               <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
+                <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] text-[var(--color-text-soft)]">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 13l2.5-7A2 2 0 0 1 7.4 4.6h9.2a2 2 0 0 1 1.9 1.4L21 13" />
+                    <path d="M3 13h5l1.5 2.5h5L16 13h5v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  </svg>
+                </span>
                 <p className="kicker">No thread selected</p>
                 <h2 className="mt-2 text-base font-medium text-[var(--color-text)]">
                   Select an email to preview it here.
@@ -1269,30 +1673,84 @@ export function WorkspaceConsole({
               </div>
             ) : (
               <>
-                <div className="border-b border-[var(--color-line)] px-4 py-4 sm:px-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <h2 className="text-base font-medium tracking-tight text-[var(--color-text)] sm:text-lg">
-                        {active.subject}
-                      </h2>
-                      <p className="mt-1 text-[13px] text-[var(--color-text-soft)]">
-                        {active.from}
-                        {active.to ? ` · to ${active.to}` : ""} · {active.time}
-                      </p>
-                    </div>
+                <div className="border-b border-[var(--color-line)] px-4 py-3.5 sm:px-5">
+                  <h2 className="line-clamp-2 text-[15px] leading-snug font-medium tracking-tight text-[var(--color-text)]">
+                    {active.subject}
+                  </h2>
+                  <p className="mt-1 truncate text-[12px] text-[var(--color-text-soft)]">
+                    {active.from}
+                    {active.to ? ` · to ${active.to}` : ""} · {active.time}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={suggestScheduleSlots}
+                      disabled={scheduleBusy}
+                      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" />
+                        <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" />
+                      </svg>
+                      {scheduleBusy ? "Checking…" : "Schedule"}
+                    </button>
                     <button
                       type="button"
                       onClick={extractActiveCommitment}
                       disabled={commitmentBusy}
-                      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
                     >
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M8 1.5l1.4 3.4L12.8 6 9.4 7.4 8 10.8 6.6 7.4 3.2 6l3.4-1.1z" />
+                      </svg>
                       {commitmentBusy
-                        ? "Extracting..."
+                        ? "Extracting…"
                         : active.commitment
                           ? "Re-extract"
-                          : "Extract commitment"}
+                          : "Extract"}
                     </button>
                   </div>
+                  {scheduleStatus && (
+                    <p className="mt-2 text-[12px] text-[var(--color-text-soft)]">
+                      {scheduleStatus}
+                    </p>
+                  )}
+                  {scheduleSlots.length > 0 && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {scheduleSlots.map((slot) => (
+                        <button
+                          key={slot.start}
+                          type="button"
+                          onClick={() => void scheduleThreadMeeting(slot)}
+                          disabled={scheduleBusy}
+                          className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-left transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] disabled:opacity-60"
+                        >
+                          <span className="block font-mono text-[10px] tracking-[0.08em] text-[var(--color-accent)] uppercase">
+                            Free slot
+                          </span>
+                          <span className="mt-1 block text-[12px] leading-5 text-[var(--color-text)]">
+                            {slot.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {commitmentStatus && (
                     <p className="mt-2 text-[12px] text-[var(--color-text-soft)]">
                       {commitmentStatus}
@@ -1312,6 +1770,7 @@ export function WorkspaceConsole({
                           preview: active.preview,
                           time: active.time,
                           receivedAt: null,
+                          attachments: [],
                         },
                       ]
                   ).map((message) => (
@@ -1319,25 +1778,50 @@ export function WorkspaceConsole({
                       key={message.id}
                       className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)]"
                     >
-                      <div className="border-b border-[var(--color-line)] px-3 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                            {message.from}
-                          </p>
-                          <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                            {message.time}
-                          </span>
+                      <div className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-3 py-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[10px] font-medium text-[var(--color-text-muted)]">
+                          {senderInitials(message.from)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                              {senderDisplayName(message.from) || message.from}
+                            </p>
+                            <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                              {message.time}
+                            </span>
+                          </div>
+                          {message.to && (
+                            <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-soft)]">
+                              to {message.to}
+                            </p>
+                          )}
                         </div>
-                        {message.to && (
-                          <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-soft)]">
-                            to {message.to}
-                          </p>
-                        )}
                       </div>
                       <div className="email-md px-3 py-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {message.body}
                         </ReactMarkdown>
+                        {message.attachments &&
+                          message.attachments.length > 0 && (
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              {message.attachments.map((attachment) => (
+                                <figure
+                                  key={attachment.id}
+                                  className="overflow-hidden rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface-2)]"
+                                >
+                                  <img
+                                    src={attachment.dataUrl}
+                                    alt={attachment.filename}
+                                    className="max-h-80 w-full object-contain"
+                                  />
+                                  <figcaption className="truncate border-t border-[var(--color-line)] px-2.5 py-1.5 text-[11px] text-[var(--color-text-soft)]">
+                                    {attachment.filename}
+                                  </figcaption>
+                                </figure>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     </article>
                   ))}
@@ -1398,24 +1882,49 @@ export function WorkspaceConsole({
                 )}
                 <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3 sm:mx-5">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="kicker">Reply from KODA</p>
+                    <div className="flex items-center gap-2">
+                      <KodaLogo markClassName="h-4 w-4" />
+                      <p className="kicker">Reply</p>
+                    </div>
                     <button
                       type="button"
                       onClick={draftReplyWithAi}
                       disabled={draftBusy || replyBusy}
                       title="Draft reply using AI"
-                      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
                     >
-                      {draftBusy ? "Drafting..." : "AI draft"}
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3 w-3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M8 1.5l1.4 3.4L12.8 6 9.4 7.4 8 10.8 6.6 7.4 3.2 6l3.4-1.1z" />
+                      </svg>
+                      {draftBusy ? "Drafting…" : "AI draft"}
                     </button>
                   </div>
-                  <textarea
-                    value={replyText}
-                    onChange={(event) => setReplyText(event.target.value)}
-                    placeholder="Write a reply..."
-                    rows={5}
-                    className="mt-3 max-h-44 min-h-28 w-full resize-none overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
-                  />
+                  <div className="relative mt-3">
+                    <textarea
+                      value={replyText}
+                      onChange={(event) => setReplyText(event.target.value)}
+                      placeholder="Write a reply..."
+                      rows={5}
+                      className="max-h-44 min-h-28 w-full resize-none overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 pr-12 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+                    />
+                    <DictationButton
+                      value={replyText}
+                      onChange={setReplyText}
+                      onSubmit={() => {
+                        if (!replyBusy && replyText.trim()) void sendReply();
+                      }}
+                      disabled={replyBusy || draftBusy}
+                      className="absolute top-2 right-2"
+                    />
+                  </div>
                   <div className="mt-2 min-h-5">
                     {replyStatus && (
                       <p className="truncate text-[12px] text-[var(--color-text-soft)]">
@@ -1581,7 +2090,7 @@ export function WorkspaceConsole({
       )}
 
       {composeOpen && (
-        <div className="fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
+        <div className="pop fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
           <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2">
             <p className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
               New message
@@ -1592,14 +2101,25 @@ export function WorkspaceConsole({
                 setComposeOpen(false);
                 setComposeStatus(null);
               }}
+              aria-label="Close compose"
               className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
             >
-              ✕
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
             </button>
           </div>
           <div className="divide-y divide-[var(--color-line)]">
             <input
               value={composeForm.to}
+              disabled={composeBusy || composeDraftBusy}
               onChange={(event) =>
                 setComposeForm((current) => ({
                   ...current,
@@ -1607,10 +2127,11 @@ export function WorkspaceConsole({
                 }))
               }
               placeholder="Recipients"
-              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:opacity-60"
             />
             <input
               value={composeForm.subject}
+              disabled={composeBusy || composeDraftBusy}
               onChange={(event) =>
                 setComposeForm((current) => ({
                   ...current,
@@ -1618,40 +2139,159 @@ export function WorkspaceConsole({
                 }))
               }
               placeholder="Subject"
-              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:opacity-60"
             />
           </div>
-          <textarea
-            value={composeForm.body}
-            onChange={(event) =>
-              setComposeForm((current) => ({
-                ...current,
-                body: event.target.value,
-              }))
-            }
-            rows={9}
-            placeholder="Write your email..."
-            className="w-full resize-none bg-transparent px-3 py-3 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
-          />
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--color-line)] px-3 py-2">
-            <button
-              type="button"
-              onClick={sendCompose}
-              disabled={
-                composeBusy ||
-                parseRecipients(composeForm.to).length === 0 ||
-                !composeForm.subject.trim() ||
-                !composeForm.body.trim()
+          <div className="relative">
+            <textarea
+              value={composeForm.body}
+              disabled={composeBusy || composeDraftBusy}
+              onChange={(event) =>
+                setComposeForm((current) => ({
+                  ...current,
+                  body: event.target.value,
+                }))
               }
-              className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
-            >
-              {composeBusy ? "Sending..." : "Send"}
-            </button>
-            {composeStatus && (
-              <p className="text-right text-[12px] text-[var(--color-text-soft)]">
-                {composeStatus}
-              </p>
-            )}
+              rows={9}
+              placeholder="Write your email..."
+              className="w-full resize-none bg-transparent px-3 py-3 pr-12 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:opacity-60"
+            />
+            <DictationButton
+              value={composeForm.body}
+              onChange={(value) =>
+                setComposeForm((current) => ({ ...current, body: value }))
+              }
+              onSubmit={() => {
+                if (
+                  !composeBusy &&
+                  !composeDraftBusy &&
+                  parseRecipients(composeForm.to).length > 0 &&
+                  composeForm.subject.trim() &&
+                  composeForm.body.trim()
+                ) {
+                  void sendCompose();
+                }
+              }}
+              disabled={composeBusy || composeDraftBusy}
+              className="absolute top-3 right-2"
+            />
+          </div>
+          {composeAttachments.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 border-t border-[var(--color-line)] px-3 py-2">
+              {composeAttachments.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  className="group relative overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)]"
+                >
+                  <img
+                    src={attachment.previewUrl}
+                    alt=""
+                    className="h-24 w-full object-cover"
+                  />
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] text-[var(--color-text)]">
+                        {attachment.filename}
+                      </p>
+                      <p className="font-mono text-[10px] text-[var(--color-text-soft)]">
+                        {formatBytes(attachment.size)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeComposeAttachment(attachment.id)}
+                      disabled={composeBusy || composeDraftBusy}
+                      aria-label={`Remove ${attachment.filename}`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] disabled:opacity-50"
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      >
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-line)] px-3 py-2">
+            <div className="flex items-center gap-2">
+              <label
+                className={`flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] ${
+                  composeBusy || composeDraftBusy
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }`}
+                title="Attach image"
+                aria-label="Attach image"
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  disabled={composeBusy || composeDraftBusy}
+                  onChange={(event) => {
+                    void addComposeImages(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 11.5l2.7-2.7a1 1 0 011.4 0l1.4 1.4 2-2a1 1 0 011.4 0L13 9.3" />
+                  <path d="M3 4.5A1.5 1.5 0 014.5 3h7A1.5 1.5 0 0113 4.5v7a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 013 11.5v-7z" />
+                  <path d="M6 6.2h.01" />
+                </svg>
+              </label>
+              {composeStatus && (
+                <p className="max-w-[210px] text-[12px] text-[var(--color-text-soft)]">
+                  {composeStatus}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={saveComposeDraft}
+                disabled={
+                  composeBusy ||
+                  composeDraftBusy ||
+                  parseRecipients(composeForm.to).length === 0 ||
+                  !composeForm.subject.trim() ||
+                  !composeForm.body.trim()
+                }
+                className="rounded-[var(--radius-sm)] px-3 py-1.5 text-[12px] font-medium text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] disabled:opacity-50"
+              >
+                {composeDraftBusy ? "Saving..." : "Save draft"}
+              </button>
+              <button
+                type="button"
+                onClick={sendCompose}
+                disabled={
+                  composeBusy ||
+                  composeDraftBusy ||
+                  parseRecipients(composeForm.to).length === 0 ||
+                  !composeForm.subject.trim() ||
+                  !composeForm.body.trim()
+                }
+                className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+              >
+                {composeBusy ? "Sending..." : "Send"}
+              </button>
+            </div>
           </div>
         </div>
       )}
