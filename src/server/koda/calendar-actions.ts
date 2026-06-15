@@ -35,7 +35,8 @@ export type CalendarEventPatch = Partial<CalendarEventInput> & {
 
 function clean(value: string | undefined) {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+  if (!trimmed) return undefined;
+  return trimmed;
 }
 
 function normalizeAttendees(attendees: string[] | undefined) {

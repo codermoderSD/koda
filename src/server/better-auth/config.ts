@@ -6,6 +6,12 @@ import { db } from "~/server/db";
 import { ensureCorsairConnection } from "~/server/koda/connect";
 import * as schema from "~/server/db/schema";
 
+const trustedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  env.BETTER_AUTH_URL,
+].filter((origin): origin is string => Boolean(origin));
+
 async function seedTenant(account: { providerId: string; userId: string }) {
   if (account.providerId !== "google") return;
   try {
@@ -30,7 +36,7 @@ export const auth = betterAuth({
   },
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: ["http://localhost:3000", "http://localhost:3001"],
+  trustedOrigins,
   socialProviders: {
     google: {
       clientId: env.BETTER_AUTH_GOOGLE_CLIENT_ID!,

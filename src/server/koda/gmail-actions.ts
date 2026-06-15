@@ -132,8 +132,14 @@ function findReplySource(messages: GmailMessage[], selfEmail: string) {
   return messages.at(-1);
 }
 
+function textOrFallback(value: string | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value;
+}
+
 function replySubject(subject: string | undefined) {
-  const safe = cleanHeader(subject?.trim() || "Untitled thread");
+  const trimmedSubject = textOrFallback(subject?.trim(), "Untitled thread");
+  const safe = cleanHeader(trimmedSubject);
   return /^re:/i.test(safe) ? safe : `Re: ${safe}`;
 }
 

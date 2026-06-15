@@ -50,7 +50,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const { eventId } = await context.params;
-    const payload = request.headers
+    const payload: unknown = request.headers
       .get("content-type")
       ?.includes("application/json")
       ? await request.json()

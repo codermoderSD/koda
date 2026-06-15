@@ -34,11 +34,11 @@ async function runReadOnlyCorsairMcpTool({
   toolName: "list_operations" | "get_schema";
   args: Record<string, unknown>;
 }) {
-  const { buildCorsairToolDefs } = (await import(
+  const { buildCorsairToolDefs } = await import(
     /* webpackIgnore: true */
     /* turbopackIgnore: true */
     "@corsair-dev/mcp"
-  )) as typeof import("@corsair-dev/mcp");
+  );
 
   const def = buildCorsairToolDefs({
     corsair: corsair.withTenant(tenantId),

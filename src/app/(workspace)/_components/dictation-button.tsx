@@ -67,6 +67,9 @@ export function DictationButton({
     className.includes("absolute") || className.includes("fixed")
       ? `inline-flex ${className}`
       : `relative inline-flex ${className}`;
+  let statusText = "Listening...";
+  if (status?.trim()) statusText = status;
+  if (interim.trim()) statusText = interim;
 
   useEffect(() => {
     const SpeechRecognition =
@@ -212,10 +215,10 @@ export function DictationButton({
                   : "bg-[var(--color-warning)]"
               }`}
             />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12px] text-[var(--color-text)]">
-                {interim || status || "Listening..."}
-              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] text-[var(--color-text)]">
+                  {statusText}
+                </span>
               {listening && (
                 <span className="mt-0.5 block font-mono text-[9px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
                   Esc to stop

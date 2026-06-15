@@ -6,7 +6,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const maxResults = Number(url.searchParams.get("maxResults") ?? 20);
   const pageToken = url.searchParams.get("pageToken") ?? undefined;
-  const q = url.searchParams.get("q")?.trim() || undefined;
+  const trimmedQuery = url.searchParams.get("q")?.trim();
+  let q: string | undefined;
+  if (trimmedQuery) q = trimmedQuery;
   const page = await getInboxThreadPage({
     maxResults: Number.isFinite(maxResults) ? maxResults : 20,
     pageToken,

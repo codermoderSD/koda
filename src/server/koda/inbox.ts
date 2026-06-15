@@ -86,6 +86,11 @@ export type InboxThreadPage = {
   nextPageToken: string | null;
 };
 
+function textOrFallback(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value;
+}
+
 function readHeader(
   message: GmailMessage | undefined,
   headerName: string,
@@ -167,7 +172,7 @@ async function imageAttachmentsFor(
 
       return {
         id: `${message.id}-${part.partId ?? index}`,
-        filename: part.filename?.trim() || `image-${index + 1}`,
+        filename: textOrFallback(part.filename?.trim(), `image-${index + 1}`),
         mimeType,
         dataUrl: imageDataUrl(mimeType, data),
       };
@@ -242,7 +247,7 @@ async function normalizeThread(
     to,
     subject,
     preview,
-    body: body || preview,
+    body: textOrFallback(body, preview),
     receivedAt,
     labels: lastMessage?.labelIds ?? [],
     messageCount: messages.length,
@@ -261,7 +266,7 @@ async function normalizeMessage(
   const from = message.from ?? readHeader(message, "from") ?? "Unknown sender";
   const to = message.to ?? readHeader(message, "to") ?? null;
   const preview = message.snippet ?? "No preview available";
-  const body = bestBody(message) || preview;
+  const body = textOrFallback(bestBody(message), preview);
   const attachments = await imageAttachmentsFor(api, message);
 
   return [
@@ -343,8 +348,8 @@ export async function getInboxThreadPage(options?: {
     );
 
     const normalizedThreads = await Promise.all(
-      detailedThreads.map((thread) =>
-        thread ? normalizeThread(thread, gmail.api) : null,
+      detailedThreads.map(async (thread) =>
+        thread ? await normalizeThread(thread, gmail.api) : null,
       ),
     );
     const threads = normalizedThreads.filter((thread): thread is InboxThread =>

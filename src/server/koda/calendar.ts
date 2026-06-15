@@ -29,16 +29,22 @@ type RawEvent = {
   attendees?: Array<{ email?: string }>;
 };
 
+function textOrFallback(value: string | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value;
+}
+
 function mapEvent(e: RawEvent): KodaCalendarEvent[] {
   if (!e.id) return [];
   if (e.status === "cancelled") return [];
 
   const allDay = Boolean(e.start?.date && !e.start?.dateTime);
+  const title = textOrFallback(e.summary?.trim(), "(no title)");
 
   return [
     {
       id: e.id,
-      title: e.summary?.trim() || "(no title)",
+      title,
       start: e.start?.dateTime ?? e.start?.date ?? null,
       end: e.end?.dateTime ?? e.end?.date ?? null,
       allDay,
