@@ -10,6 +10,7 @@ export type KodaCalendarEvent = {
   start: string | null; // ISO datetime, or YYYY-MM-DD for all-day
   end: string | null;
   allDay: boolean;
+  description: string | null;
   location: string | null;
   attendees: string[];
   meetLink: string | null;
@@ -19,6 +20,7 @@ export type KodaCalendarEvent = {
 type RawEvent = {
   id?: string;
   summary?: string;
+  description?: string;
   status?: string;
   location?: string;
   hangoutLink?: string;
@@ -40,6 +42,7 @@ function mapEvent(e: RawEvent): KodaCalendarEvent[] {
       start: e.start?.dateTime ?? e.start?.date ?? null,
       end: e.end?.dateTime ?? e.end?.date ?? null,
       allDay,
+      description: e.description ?? null,
       location: e.location ?? null,
       attendees: (e.attendees ?? [])
         .map((a) => a.email)
@@ -54,6 +57,7 @@ export async function getCalendarEvents(options: {
   timeMin: string;
   timeMax: string;
   maxResults?: number;
+  q?: string;
   tenantId?: string;
 }): Promise<KodaCalendarEvent[]> {
   const tenantId = options.tenantId ?? (await getTenantId());
@@ -68,6 +72,7 @@ export async function getCalendarEvents(options: {
       singleEvents: true,
       orderBy: "startTime",
       maxResults: options.maxResults ?? 250,
+      q: options.q,
     })) as { items?: RawEvent[] };
 
     return (response.items ?? []).flatMap(mapEvent);

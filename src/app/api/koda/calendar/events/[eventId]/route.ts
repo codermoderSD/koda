@@ -16,6 +16,7 @@ const updateEventSchema = z.object({
   description: z.string().optional(),
   location: z.string().optional(),
   attendees: z.array(z.string()).optional(),
+  timeZone: z.string().optional(),
   calendarId: z.string().optional(),
   sendUpdates: sendUpdatesSchema.optional(),
 });

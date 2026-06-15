@@ -1,6 +1,13 @@
 "use client";
 
-import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 export type CalEvent = {
   id: string;
@@ -8,6 +15,7 @@ export type CalEvent = {
   start: string | null;
   end: string | null;
   allDay: boolean;
+  description: string | null;
   location: string | null;
   attendees: string[];
   meetLink: string | null;
@@ -107,8 +115,7 @@ function toFormTime(value: string | null, allDay: boolean) {
 
 function normalizeFormTime(value: string, allDay: boolean) {
   if (allDay) return value;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+  return value.length === 16 ? `${value}:00` : value;
 }
 
 function defaultEventForm(now: Date): EventFormState {
@@ -133,7 +140,7 @@ function formFromEvent(event: CalEvent): EventFormState {
     start: toFormTime(event.start, event.allDay),
     end: toFormTime(event.end, event.allDay),
     allDay: event.allDay,
-    description: "",
+    description: event.description ?? "",
     location: event.location ?? "",
     attendees: event.attendees.join(", "),
   };
@@ -155,6 +162,17 @@ async function readJson<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+async function fetchCalendarWindow(nowISO: string) {
+  return readJson<{ events: CalEvent[] }>(
+    await fetch(
+      `/api/koda/calendar/events?now=${encodeURIComponent(nowISO)}&t=${Date.now()}`,
+      {
+        cache: "no-store",
+      },
+    ),
+  );
+}
+
 function formPayload(form: EventFormState) {
   const attendees = form.attendees
     .split(",")
@@ -169,17 +187,65 @@ function formPayload(form: EventFormState) {
     description: form.description || undefined,
     location: form.location || undefined,
     attendees: attendees.length > 0 ? attendees : undefined,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     sendUpdates: "all" as const,
   };
 }
 
-type Positioned = { ev: CalEvent; start: Date; end: Date };
+type Positioned = {
+  ev: CalEvent;
+  start: Date;
+  end: Date;
+  column: number;
+  columns: number;
+};
+
+type RawPositioned = Omit<Positioned, "column" | "columns">;
+
+function layoutTimedEvents(events: RawPositioned[]): Positioned[] {
+  const sorted = [...events].sort(
+    (a, b) => a.start.getTime() - b.start.getTime(),
+  );
+  const laidOut: Positioned[] = [];
+  let group: RawPositioned[] = [];
+  let groupEnd = 0;
+
+  function flushGroup() {
+    if (group.length === 0) return;
+
+    const columnEnds: number[] = [];
+    const groupItems = group.map((item) => {
+      const column = columnEnds.findIndex((end) => end <= item.start.getTime());
+      const assignedColumn = column === -1 ? columnEnds.length : column;
+      columnEnds[assignedColumn] = item.end.getTime();
+      return { ...item, column: assignedColumn, columns: 1 };
+    });
+
+    const columns = Math.max(columnEnds.length, 1);
+    laidOut.push(...groupItems.map((item) => ({ ...item, columns })));
+    group = [];
+    groupEnd = 0;
+  }
+
+  for (const event of sorted) {
+    const start = event.start.getTime();
+    const end = event.end.getTime();
+    if (group.length > 0 && start >= groupEnd) {
+      flushGroup();
+    }
+    group.push(event);
+    groupEnd = Math.max(groupEnd, end);
+  }
+  flushGroup();
+
+  return laidOut;
+}
 
 function positioned(events: CalEvent[]): {
   timed: Positioned[];
   allDay: CalEvent[];
 } {
-  const timed: Positioned[] = [];
+  const timed: RawPositioned[] = [];
   const allDay: CalEvent[] = [];
   for (const ev of events) {
     if (ev.allDay || !ev.start) {
@@ -193,7 +259,7 @@ function positioned(events: CalEvent[]): {
     if (Number.isNaN(start.getTime())) continue;
     timed.push({ ev, start, end });
   }
-  return { timed, allDay };
+  return { timed: layoutTimedEvents(timed), allDay };
 }
 
 function EventBlock({
@@ -206,12 +272,15 @@ function EventBlock({
   const top = (hourFraction(p.start) - DAY_START) * ROW_HEIGHT;
   const rawH = (hourFraction(p.end) - hourFraction(p.start)) * ROW_HEIGHT;
   const height = Math.max(rawH - 3, 18);
+  const gutter = 4;
+  const left = `calc(${(p.column / p.columns) * 100}% + ${gutter / 2}px)`;
+  const width = `calc(${100 / p.columns}% - ${gutter}px)`;
   return (
     <button
       type="button"
       onClick={() => onSelect(p.ev)}
-      className="absolute right-1 left-1 overflow-hidden rounded-[var(--radius-sm)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] px-1.5 py-1"
-      style={{ top: Math.max(top, 0), height }}
+      className="absolute overflow-hidden rounded-[var(--radius-sm)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] px-1.5 py-1 text-left"
+      style={{ top: Math.max(top, 0), height, left, width }}
       title={p.ev.title}
     >
       <p className="truncate text-[11px] font-medium text-[var(--color-text)]">
@@ -233,6 +302,8 @@ export function CalendarView({
   events: CalEvent[];
   nowISO: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const now = useMemo(() => new Date(nowISO), [nowISO]);
   const [view, setView] = useState<View>("week");
   const [ref, setRef] = useState<Date>(() => new Date(nowISO));
@@ -247,6 +318,38 @@ export function CalendarView({
 
   const selected =
     calendarEvents.find((event) => event.id === selectedId) ?? null;
+
+  useEffect(() => {
+    setCalendarEvents(events);
+  }, [events]);
+
+  useEffect(() => {
+    const eventId = searchParams.get("eventId");
+    if (!eventId) return;
+    const event = calendarEvents.find((item) => item.id === eventId);
+    if (!event) return;
+    selectEvent(event);
+    if (event.start) {
+      const start = new Date(event.start);
+      if (!Number.isNaN(start.getTime())) setRef(start);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarEvents, searchParams]);
+
+  useEffect(() => {
+    function refreshData() {
+      void fetchCalendarWindow(nowISO)
+        .then((payload) => setCalendarEvents(payload.events))
+        .finally(() => router.refresh());
+      window.setTimeout(() => {
+        void fetchCalendarWindow(nowISO)
+          .then((payload) => setCalendarEvents(payload.events))
+          .finally(() => router.refresh());
+      }, 1200);
+    }
+    window.addEventListener("koda:data-refresh", refreshData);
+    return () => window.removeEventListener("koda:data-refresh", refreshData);
+  }, [nowISO, router]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
@@ -307,6 +410,12 @@ export function CalendarView({
     setStatus(null);
   }
 
+  function closeEditor() {
+    setCreating(false);
+    setSelectedId(null);
+    setStatus(null);
+  }
+
   async function createEvent() {
     setBusy(true);
     setStatus(null);
@@ -323,6 +432,7 @@ export function CalendarView({
       setSelectedId(payload.event.id);
       setForm(formFromEvent(payload.event));
       setStatus("Event created.");
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Could not create event.",
@@ -355,6 +465,7 @@ export function CalendarView({
       setSelectedId(payload.event.id);
       setForm(formFromEvent(payload.event));
       setStatus("Event updated.");
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Could not update event.",
@@ -383,6 +494,7 @@ export function CalendarView({
       setSelectedId(null);
       setForm(defaultEventForm(ref));
       setStatus("Event deleted.");
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Could not delete event.",
@@ -487,18 +599,6 @@ export function CalendarView({
         </section>
 
         <aside className="flex flex-col gap-4 lg:min-h-0 lg:overflow-y-auto">
-          {(creating || selected) && (
-            <EventEditor
-              mode={creating ? "create" : "edit"}
-              form={form}
-              setForm={setForm}
-              busy={busy}
-              status={status}
-              onSave={creating ? createEvent : updateEvent}
-              onDelete={creating ? undefined : deleteEvent}
-            />
-          )}
-
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-4">
             <p className="kicker">This week</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -555,6 +655,21 @@ export function CalendarView({
           </div>
         </aside>
       </div>
+
+      {(creating || selected) && (
+        <EventDialog onClose={closeEditor}>
+          <EventEditor
+            mode={creating ? "create" : "edit"}
+            form={form}
+            setForm={setForm}
+            busy={busy}
+            status={status}
+            onSave={creating ? createEvent : updateEvent}
+            onDelete={creating ? undefined : deleteEvent}
+            onClose={closeEditor}
+          />
+        </EventDialog>
+      )}
     </div>
   );
 }
@@ -575,6 +690,28 @@ function TimeColumn() {
   );
 }
 
+function EventDialog({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 py-6">
+      <button
+        type="button"
+        aria-label="Close event editor"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+      <div className="relative z-10 max-h-[calc(100vh-48px)] w-[min(560px,calc(100vw-32px))] overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function EventEditor({
   mode,
   form,
@@ -583,6 +720,7 @@ function EventEditor({
   status,
   onSave,
   onDelete,
+  onClose,
 }: {
   mode: "create" | "edit";
   form: EventFormState;
@@ -591,13 +729,24 @@ function EventEditor({
   status: string | null;
   onSave: () => void;
   onDelete?: () => void;
+  onClose: () => void;
 }) {
   const timeType = form.allDay ? "date" : "datetime-local";
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-4">
-      <p className="kicker">
-        {mode === "create" ? "Create event" : "Edit event"}
-      </p>
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] p-4 shadow-[var(--shadow-soft)]">
+      <div className="flex items-center justify-between gap-3">
+        <p className="kicker">
+          {mode === "create" ? "Create event" : "Event details"}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
       <div className="mt-3 space-y-2.5">
         <input
           value={form.title}

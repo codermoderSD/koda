@@ -24,6 +24,7 @@ export type CalendarEventInput = {
   description?: string;
   location?: string;
   attendees?: string[];
+  timeZone?: string;
   calendarId?: string;
   sendUpdates?: "all" | "externalOnly" | "none";
 };
@@ -47,6 +48,7 @@ function normalizeAttendees(attendees: string[] | undefined) {
 
 function eventBody(input: CalendarEventPatch) {
   const allDay = Boolean(input.allDay);
+  const timeZone = clean(input.timeZone);
   const body: CalendarEventBody = {};
 
   const title = clean(input.title);
@@ -61,12 +63,12 @@ function eventBody(input: CalendarEventPatch) {
   if (input.start) {
     body.start = allDay
       ? { date: input.start.slice(0, 10) }
-      : { dateTime: input.start };
+      : { dateTime: input.start, ...(timeZone ? { timeZone } : {}) };
   }
   if (input.end) {
     body.end = allDay
       ? { date: input.end.slice(0, 10) }
-      : { dateTime: input.end };
+      : { dateTime: input.end, ...(timeZone ? { timeZone } : {}) };
   }
 
   const attendees = normalizeAttendees(input.attendees);
@@ -163,6 +165,7 @@ function mapActionEvent(event: Event) {
     start: event.start?.dateTime ?? event.start?.date ?? null,
     end: event.end?.dateTime ?? event.end?.date ?? null,
     allDay: Boolean(event.start?.date && !event.start?.dateTime),
+    description: event.description ?? null,
     location: event.location ?? null,
     attendees: (event.attendees ?? [])
       .map((attendee) => attendee.email)

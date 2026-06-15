@@ -1,6 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -25,6 +33,25 @@ export type Thread = {
   };
 };
 
+type KodaEmailSearchResults = {
+  query: string;
+  threads?: Thread[];
+};
+
+function isCalendarOnlySearchQuery(query: string) {
+  const lower = query.toLowerCase();
+  const mentionsCalendar =
+    /\b(events?|calendar|meetings?|invites?|attend|upcoming|schedule)\b/.test(
+      lower,
+    );
+  const mentionsMail =
+    /@|\b(emails?|mail|gmail|inbox|threads?|messages?|from|to|sent|received|subject)\b|\b(from|to|subject|newer|older|after|before|has|label|in):/.test(
+      lower,
+    );
+
+  return mentionsCalendar && !mentionsMail;
+}
+
 type ThreadMessage = {
   id: string;
   from: string;
@@ -39,12 +66,31 @@ type QuickEventForm = {
   title: string;
   start: string;
   end: string;
+  location: string;
+  attendees: string;
+  description: string;
 };
 
 type ComposeForm = {
   to: string;
   subject: string;
   body: string;
+};
+
+type KodaDraftReplyResponse = {
+  status?: string;
+  message?: string;
+  components?: Array<
+    | {
+        type: "draft_reply";
+        threadId: string;
+        subject: string;
+        to: string;
+        body: string;
+      }
+    | { type: string; [key: string]: unknown }
+  >;
+  error?: string;
 };
 
 const priorityTone: Record<string, string> = {
@@ -94,6 +140,9 @@ function defaultQuickEvent(now: Date): QuickEventForm {
     title: "",
     start: toLocalInput(start),
     end: toLocalInput(end),
+    location: "",
+    attendees: "",
+    description: "",
   };
 }
 
@@ -130,6 +179,17 @@ async function readJson<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+async function fetchCalendarWindow(nowISO: string) {
+  return readJson<{ events: CalEvent[] }>(
+    await fetch(
+      `/api/koda/calendar/events?now=${encodeURIComponent(nowISO)}&t=${Date.now()}`,
+      {
+        cache: "no-store",
+      },
+    ),
+  );
+}
+
 function Tag({ label }: { label: string }) {
   const tone =
     priorityTone[label] ??
@@ -143,8 +203,118 @@ function Tag({ label }: { label: string }) {
   );
 }
 
+function QuickEventComposer({
+  form,
+  setForm,
+  busy,
+  status,
+  onCreate,
+}: {
+  form: QuickEventForm;
+  setForm: Dispatch<SetStateAction<QuickEventForm>>;
+  busy: boolean;
+  status: string | null;
+  onCreate: () => void;
+}) {
+  const fieldClass =
+    "w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]";
+  const timeFieldClass =
+    "min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[12px] text-[var(--color-text)] outline-none";
+  return (
+    <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="kicker">Create event</p>
+        <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
+          Calendar
+        </span>
+      </div>
+      <div className="mt-3 space-y-2.5">
+        <input
+          value={form.title}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, title: event.target.value }))
+          }
+          placeholder="Title"
+          className={fieldClass}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="datetime-local"
+            value={form.start}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, start: event.target.value }))
+            }
+            className={timeFieldClass}
+          />
+          <input
+            type="datetime-local"
+            value={form.end}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, end: event.target.value }))
+            }
+            className={timeFieldClass}
+          />
+        </div>
+        <input
+          value={form.location}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              location: event.target.value,
+            }))
+          }
+          placeholder="Location"
+          className={fieldClass}
+        />
+        <input
+          value={form.attendees}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              attendees: event.target.value,
+            }))
+          }
+          placeholder="Attendees, comma separated"
+          className={fieldClass}
+        />
+      </div>
+      <textarea
+        value={form.description}
+        onChange={(event) =>
+          setForm((current) => ({
+            ...current,
+            description: event.target.value,
+          }))
+        }
+        rows={2}
+        placeholder="Description"
+        className="mt-2 w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-2 text-[13px] leading-5 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+      />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={busy || !form.title.trim() || !form.start || !form.end}
+          className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+        >
+          {busy ? "Creating..." : "Create event"}
+        </button>
+        {status && (
+          <p className="text-right text-[12px] text-[var(--color-text-soft)]">
+            {status}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function openCommand() {
   window.dispatchEvent(new Event("koda:command-open"));
+}
+
+function normalizeLocalEventTime(value: string) {
+  return value.length === 16 ? `${value}:00` : value;
 }
 
 type PaneId = "list" | "detail" | "calendar";
@@ -211,14 +381,25 @@ function PaneHeader({
 export function WorkspaceConsole({
   threads,
   nextPageToken,
+  searchThreads,
+  searchNextPageToken,
+  searchQuery,
+  initialTab,
   events,
   nowISO,
+  selectedThreadId,
 }: {
   threads: Thread[];
   nextPageToken: string | null;
+  searchThreads: Thread[];
+  searchNextPageToken: string | null;
+  searchQuery: string;
+  initialTab?: "focused" | "all" | "search";
   events: CalEvent[];
   nowISO: string;
+  selectedThreadId?: string;
 }) {
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState<Record<PaneId, boolean>>({
     list: false,
     detail: false,
@@ -227,9 +408,24 @@ export function WorkspaceConsole({
   const [localThreads, setLocalThreads] = useState(threads);
   const [pageToken, setPageToken] = useState(nextPageToken);
   const [pageBusy, setPageBusy] = useState(false);
-  const [selectedId, setSelectedId] = useState(threads[0]?.id);
-  const [mailQuery, setMailQuery] = useState("");
-  const [mailFilter, setMailFilter] = useState<"focused" | "all">("focused");
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const knownThreadIdsRef = useRef(new Set(threads.map((thread) => thread.id)));
+  const refreshRequestedRef = useRef(false);
+  const [highlightedThreadIds, setHighlightedThreadIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    selectedThreadId,
+  );
+  const [mailQuery, setMailQuery] = useState(searchQuery);
+  const [mailFilter, setMailFilter] = useState<"focused" | "all" | "search">(
+    initialTab === "search" && searchQuery
+      ? "search"
+      : (initialTab ?? "focused"),
+  );
+  const [localSearchThreads, setLocalSearchThreads] = useState(searchThreads);
+  const [searchPageToken, setSearchPageToken] = useState(searchNextPageToken);
+  const [searchBusy, setSearchBusy] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeForm, setComposeForm] = useState<ComposeForm>(() =>
     defaultCompose(),
@@ -239,6 +435,9 @@ export function WorkspaceConsole({
   const [replyText, setReplyText] = useState("");
   const [replyStatus, setReplyStatus] = useState<string | null>(null);
   const [replyBusy, setReplyBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [commitmentBusy, setCommitmentBusy] = useState(false);
+  const [commitmentStatus, setCommitmentStatus] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
   const [eventForm, setEventForm] = useState<QuickEventForm>(() =>
     defaultQuickEvent(new Date(nowISO)),
@@ -256,7 +455,9 @@ export function WorkspaceConsole({
 
   const visibleThreads = useMemo(() => {
     const q = mailQuery.trim().toLowerCase();
-    return localThreads.filter((t) => {
+    const source = mailFilter === "search" ? localSearchThreads : localThreads;
+    return source.filter((t) => {
+      if (mailFilter === "search") return true;
       if (mailFilter === "focused" && !FOCUSED_PRIORITIES.has(t.priority))
         return false;
       if (!q) return true;
@@ -267,13 +468,124 @@ export function WorkspaceConsole({
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localThreads, mailQuery, mailFilter]);
+  }, [localThreads, localSearchThreads, mailQuery, mailFilter]);
 
-  const active =
-    localThreads.find((t) => t.id === selectedId) ?? localThreads[0];
+  const allKnownThreads = useMemo(
+    () => [...localSearchThreads, ...localThreads],
+    [localSearchThreads, localThreads],
+  );
+  const active = selectedId
+    ? (allKnownThreads.find((t) => t.id === selectedId) ?? null)
+    : null;
   const toggle = (id: PaneId) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
   const now = useMemo(() => new Date(nowISO), [nowISO]);
+
+  useEffect(() => {
+    const previous = knownThreadIdsRef.current;
+    const incoming = threads
+      .filter((thread) => !previous.has(thread.id))
+      .map((thread) => thread.id);
+    if (refreshRequestedRef.current && incoming.length > 0) {
+      setHighlightedThreadIds((current) => new Set([...current, ...incoming]));
+    }
+    knownThreadIdsRef.current = new Set(threads.map((thread) => thread.id));
+    setLocalThreads(threads);
+    setPageToken(nextPageToken);
+    refreshRequestedRef.current = false;
+    setRefreshBusy(false);
+  }, [threads, nextPageToken]);
+
+  useEffect(() => {
+    setSelectedId(selectedThreadId);
+  }, [selectedThreadId]);
+
+  useEffect(() => {
+    setLocalSearchThreads(searchThreads);
+    setSearchPageToken(searchNextPageToken);
+    setMailQuery(searchQuery);
+    if (initialTab === "search" && searchQuery) {
+      setMailFilter("search");
+    } else if (initialTab && initialTab !== "search") {
+      setMailFilter(initialTab);
+    } else if (!searchQuery && mailFilter === "search") {
+      setMailFilter("focused");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchThreads, searchNextPageToken, searchQuery, initialTab]);
+
+  useEffect(() => {
+    setLocalEvents(events);
+  }, [events]);
+
+  useEffect(() => {
+    function refreshData() {
+      void fetchCalendarWindow(nowISO)
+        .then((payload) => setLocalEvents(payload.events))
+        .finally(() => router.refresh());
+      window.setTimeout(() => {
+        void fetchCalendarWindow(nowISO)
+          .then((payload) => setLocalEvents(payload.events))
+          .finally(() => router.refresh());
+      }, 1200);
+    }
+    window.addEventListener("koda:data-refresh", refreshData);
+    return () => window.removeEventListener("koda:data-refresh", refreshData);
+  }, [nowISO, router]);
+
+  useEffect(() => {
+    function onSearchResults(event: Event) {
+      const detail = (event as CustomEvent<KodaEmailSearchResults>).detail;
+      const query = detail.query.trim();
+      if (!query || isCalendarOnlySearchQuery(query)) return;
+      router.push(`/inbox?tab=search&q=${encodeURIComponent(query)}`);
+    }
+
+    function onOpenThread(event: Event) {
+      const detail = (event as CustomEvent<{ threadId: string }>).detail;
+      if (!detail.threadId) return;
+      setSelectedId(detail.threadId);
+      const suffix =
+        mailFilter === "search" && searchQuery
+          ? `?tab=search&q=${encodeURIComponent(searchQuery)}`
+          : tabParam(mailFilter);
+      router.push(`/inbox/${encodeURIComponent(detail.threadId)}${suffix}`);
+    }
+
+    window.addEventListener("koda:email-search-results", onSearchResults);
+    window.addEventListener("koda:open-thread", onOpenThread);
+    return () => {
+      window.removeEventListener("koda:email-search-results", onSearchResults);
+      window.removeEventListener("koda:open-thread", onOpenThread);
+    };
+  }, [mailFilter, router, searchQuery]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("koda:active-thread", {
+        detail: active
+          ? {
+              id: active.id,
+              subject: active.subject,
+              from: active.from,
+              to: active.to,
+              messages: active.messages.map((message) => ({
+                from: message.from,
+                to: message.to,
+                body: message.body,
+                time: message.time,
+              })),
+            }
+          : null,
+      }),
+    );
+
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("koda:active-thread", { detail: null }),
+      );
+    };
+  }, [active]);
 
   const weekStrip = useMemo(() => {
     const start = startOfWeek(now);
@@ -331,6 +643,51 @@ export function WorkspaceConsole({
           : thread,
       ),
     );
+  }
+
+  function searchUrl(query: string, threadId?: string) {
+    const params = new URLSearchParams({ tab: "search", q: query });
+    return threadId
+      ? `/inbox/${encodeURIComponent(threadId)}?${params.toString()}`
+      : `/inbox?${params.toString()}`;
+  }
+
+  function tabParam(tab: "focused" | "all" | "search") {
+    return tab === "all" ? "?tab=all" : "";
+  }
+
+  function listUrl(tab: "focused" | "all" | "search") {
+    if (tab === "search" && searchQuery) return searchUrl(searchQuery);
+    return `/inbox${tabParam(tab)}`;
+  }
+
+  function normalThreadUrl(
+    threadId: string,
+    tab: "focused" | "all" | "search" = mailFilter,
+  ) {
+    if (tab === "search" && searchQuery)
+      return searchUrl(searchQuery, threadId);
+    return `/inbox/${encodeURIComponent(threadId)}${tabParam(tab)}`;
+  }
+
+  function submitMailSearch() {
+    const query = mailQuery.trim();
+    if (!query) {
+      router.push("/inbox");
+      return;
+    }
+    setMailFilter("search");
+    setSelectedId(undefined);
+    router.push(searchUrl(query));
+  }
+
+  function refreshMail() {
+    knownThreadIdsRef.current = new Set(
+      localThreads.map((thread) => thread.id),
+    );
+    refreshRequestedRef.current = true;
+    setRefreshBusy(true);
+    router.refresh();
   }
 
   function mapApiThread(thread: {
@@ -398,6 +755,131 @@ export function WorkspaceConsole({
     }
   }
 
+  async function loadMoreSearchMail() {
+    const query = searchQuery.trim();
+    if (!searchPageToken || !query) return;
+    setSearchBusy(true);
+    try {
+      const payload = await readJson<{
+        threads: Parameters<typeof mapApiThread>[0][];
+        nextPageToken: string | null;
+      }>(
+        await fetch(
+          `/api/inbox?maxResults=20&pageToken=${encodeURIComponent(searchPageToken)}&q=${encodeURIComponent(query)}`,
+        ),
+      );
+      setLocalSearchThreads((current) => [
+        ...current,
+        ...payload.threads.map(mapApiThread),
+      ]);
+      setSearchPageToken(payload.nextPageToken);
+    } finally {
+      setSearchBusy(false);
+    }
+  }
+
+  async function draftReplyWithAi() {
+    if (!active) return;
+    setDraftBusy(true);
+    setReplyStatus(null);
+    try {
+      const payload = await readJson<KodaDraftReplyResponse>(
+        await fetch("/api/koda/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: "Write a reply to the active email.",
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            activeThread: {
+              id: active.id,
+              subject: active.subject,
+              from: active.from,
+              to: active.to,
+              messages: active.messages.map((message) => ({
+                from: message.from,
+                to: message.to,
+                body: message.body,
+                time: message.time,
+              })),
+            },
+          }),
+        }),
+      );
+      const draft = payload.components?.find(
+        (
+          component,
+        ): component is Extract<
+          NonNullable<KodaDraftReplyResponse["components"]>[number],
+          { type: "draft_reply" }
+        > => component.type === "draft_reply",
+      );
+      if (!draft?.body) {
+        throw new Error(payload.message ?? "Could not draft a reply.");
+      }
+      setReplyText(draft.body);
+      setReplyStatus(`Drafted for ${draft.to}. Review before sending.`);
+    } catch (error) {
+      setReplyStatus(
+        error instanceof Error ? error.message : "Could not draft reply.",
+      );
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  async function extractActiveCommitment() {
+    if (!active) return;
+    setCommitmentBusy(true);
+    setCommitmentStatus(null);
+    try {
+      const payload = await readJson<{
+        scanned: number;
+        extracted: number;
+        error?: string;
+      }>(
+        await fetch("/api/koda/commitments/extract-thread", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            threadId: active.id,
+            subject: active.subject,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            messages: (active.messages.length
+              ? active.messages
+              : [
+                  {
+                    from: active.from,
+                    to: active.to,
+                    body: active.body ?? active.preview,
+                    time: active.time,
+                  },
+                ]
+            ).map((message) => ({
+              from: message.from,
+              to: message.to,
+              body: message.body,
+              time: message.time,
+            })),
+          }),
+        }),
+      );
+      setCommitmentStatus(
+        payload.extracted > 0
+          ? `Extracted ${payload.extracted} commitment${payload.extracted === 1 ? "" : "s"} from this thread.`
+          : "No clear commitment found in this thread.",
+      );
+      router.refresh();
+    } catch (error) {
+      setCommitmentStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not extract this thread.",
+      );
+    } finally {
+      setCommitmentBusy(false);
+    }
+  }
+
   async function sendReply() {
     if (!active) return;
     setReplyBusy(true);
@@ -430,6 +912,7 @@ export function WorkspaceConsole({
       });
       setReplyText("");
       setReplyStatus("Reply sent.");
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setReplyStatus(
         error instanceof Error ? error.message : "Could not send reply.",
@@ -493,6 +976,7 @@ export function WorkspaceConsole({
       setComposeForm(defaultCompose());
       setComposeOpen(false);
       setComposeStatus(null);
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setComposeStatus(
         error instanceof Error ? error.message : "Could not send email.",
@@ -506,14 +990,19 @@ export function WorkspaceConsole({
     setEventBusy(true);
     setEventStatus(null);
     try {
+      const attendees = parseRecipients(eventForm.attendees);
       const payload = await readJson<{ event: CalEvent }>(
         await fetch("/api/koda/calendar/events", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: eventForm.title,
-            start: new Date(eventForm.start).toISOString(),
-            end: new Date(eventForm.end).toISOString(),
+            start: normalizeLocalEventTime(eventForm.start),
+            end: normalizeLocalEventTime(eventForm.end),
+            location: eventForm.location || undefined,
+            attendees: attendees.length > 0 ? attendees : undefined,
+            description: eventForm.description || undefined,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             sendUpdates: "all",
           }),
         }),
@@ -522,6 +1011,7 @@ export function WorkspaceConsole({
       setEventForm(defaultQuickEvent(now));
       setEventOpen(false);
       setEventStatus("Event created.");
+      window.dispatchEvent(new Event("koda:data-refresh"));
     } catch (error) {
       setEventStatus(
         error instanceof Error ? error.message : "Could not create event.",
@@ -548,7 +1038,11 @@ export function WorkspaceConsole({
         >
           <PaneHeader
             title="Mail"
-            count={`${visibleThreads.length}/${localThreads.length}`}
+            count={
+              mailFilter === "search"
+                ? `${visibleThreads.length}/${localSearchThreads.length}`
+                : `${visibleThreads.length}/${localThreads.length}`
+            }
             onCollapse={() => toggle("list")}
           >
             <button
@@ -563,7 +1057,13 @@ export function WorkspaceConsole({
             </button>
           </PaneHeader>
           <div className="space-y-2 border-b border-[var(--color-line)] px-3 py-2">
-            <div className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitMailSearch();
+              }}
+              className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5"
+            >
               <svg
                 className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-soft)]"
                 viewBox="0 0 16 16"
@@ -577,34 +1077,79 @@ export function WorkspaceConsole({
               <input
                 value={mailQuery}
                 onChange={(e) => setMailQuery(e.target.value)}
-                placeholder="Search mail"
+                placeholder="Search all Gmail"
                 className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
               />
               {mailQuery && (
                 <button
                   type="button"
-                  onClick={() => setMailQuery("")}
+                  onClick={() => {
+                    setMailQuery("");
+                    if (mailFilter === "search") router.push("/inbox");
+                  }}
                   className="shrink-0 text-[12px] text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
                 >
                   ✕
                 </button>
               )}
-            </div>
+              <button
+                type="submit"
+                disabled={!mailQuery.trim()}
+                className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text)] transition hover:bg-[var(--color-accent-soft)] disabled:opacity-50"
+              >
+                Search
+              </button>
+            </form>
             <div className="flex items-center gap-1">
-              {(["focused", "all"] as const).map((f) => (
+              {(["focused", "all", "search"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
-                  onClick={() => setMailFilter(f)}
+                  onClick={() => {
+                    if (f === "search" && searchQuery) {
+                      router.push(searchUrl(searchQuery, selectedId));
+                      return;
+                    }
+                    setMailFilter(f);
+                    router.push(
+                      selectedId ? normalThreadUrl(selectedId, f) : listUrl(f),
+                    );
+                  }}
+                  disabled={f === "search" && !searchQuery}
                   className={`rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-medium capitalize transition ${
                     mailFilter === f
                       ? "bg-[var(--color-panel-strong)] text-[var(--color-text)]"
                       : "text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
-                  }`}
+                  } ${f === "search" && !searchQuery ? "opacity-40" : ""}`}
+                  title={
+                    f === "search" && searchQuery
+                      ? `Search: ${searchQuery}`
+                      : undefined
+                  }
                 >
-                  {f}
+                  {f === "search" && searchQuery
+                    ? `Search (${localSearchThreads.length})`
+                    : f}
                 </button>
               ))}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMailQuery("");
+                    setLocalSearchThreads([]);
+                    setSearchPageToken(null);
+                    router.push(
+                      selectedId
+                        ? normalThreadUrl(selectedId, "focused")
+                        : "/inbox",
+                    );
+                  }}
+                  className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] text-[var(--color-text-soft)] transition hover:text-[var(--color-text)]"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </div>
           <div className="divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -612,11 +1157,14 @@ export function WorkspaceConsole({
               <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
                 {mailQuery
                   ? "No mail matches your search."
-                  : "No focused mail right now."}
+                  : mailFilter === "search"
+                    ? "No KODA search results."
+                    : "No focused mail right now."}
               </p>
             )}
             {visibleThreads.map((thread) => {
               const isActive = thread.id === active?.id;
+              const isHighlighted = highlightedThreadIds.has(thread.id);
               return (
                 <button
                   key={thread.id}
@@ -624,11 +1172,24 @@ export function WorkspaceConsole({
                   onClick={() => {
                     setSelectedId(thread.id);
                     setReplyStatus(null);
+                    setHighlightedThreadIds((current) => {
+                      if (!current.has(thread.id)) return current;
+                      const next = new Set(current);
+                      next.delete(thread.id);
+                      return next;
+                    });
+                    router.push(
+                      mailFilter === "search" && searchQuery
+                        ? searchUrl(searchQuery, thread.id)
+                        : normalThreadUrl(thread.id, mailFilter),
+                    );
                   }}
-                  className={`block w-full px-3.5 py-3 text-left transition ${
+                  className={`block w-full border-l-2 px-3.5 py-3 text-left transition ${
                     isActive
-                      ? "bg-[var(--color-panel-strong)]"
-                      : "hover:bg-[var(--color-panel)]"
+                      ? "border-l-transparent bg-[var(--color-panel-strong)]"
+                      : isHighlighted
+                        ? "border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:bg-[var(--color-panel)]"
+                        : "border-l-transparent hover:bg-[var(--color-panel)]"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -651,7 +1212,7 @@ export function WorkspaceConsole({
                 </button>
               );
             })}
-            {pageToken && !mailQuery && (
+            {pageToken && !mailQuery && mailFilter !== "search" && (
               <div className="p-3">
                 <button
                   type="button"
@@ -660,6 +1221,18 @@ export function WorkspaceConsole({
                   className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
                 >
                   {pageBusy ? "Loading..." : "Load 20 more"}
+                </button>
+              </div>
+            )}
+            {searchPageToken && mailFilter === "search" && (
+              <div className="p-3">
+                <button
+                  type="button"
+                  onClick={loadMoreSearchMail}
+                  disabled={searchBusy}
+                  className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                >
+                  {searchBusy ? "Loading..." : "Load 20 more results"}
                 </button>
               </div>
             )}
@@ -677,141 +1250,205 @@ export function WorkspaceConsole({
             "lg:flex-[4]",
           )}`}
         >
-          <PaneHeader title="Thread" onCollapse={() => toggle("detail")}>
-            <button
-              type="button"
-              onClick={openCommand}
-              className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
-            >
-              Reply
-            </button>
-          </PaneHeader>
+          <PaneHeader
+            title="Thread"
+            onCollapse={() => toggle("detail")}
+          ></PaneHeader>
 
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-            <div className="border-b border-[var(--color-line)] px-4 py-4 sm:px-5">
-              <h2 className="text-base font-medium tracking-tight text-[var(--color-text)] sm:text-lg">
-                {active?.subject}
-              </h2>
-              <p className="mt-1 text-[13px] text-[var(--color-text-soft)]">
-                {active?.from}
-                {active?.to ? ` · to ${active.to}` : ""} · {active?.time}
-              </p>
-            </div>
-
-            <div className="space-y-3 px-4 py-5 sm:px-5">
-              {(active?.messages.length
-                ? active.messages
-                : [
-                    {
-                      id: `${active?.id ?? "empty"}-fallback`,
-                      from: active?.from ?? "Unknown sender",
-                      to: active?.to ?? null,
-                      body: active?.body ?? active?.preview ?? "",
-                      preview: active?.preview ?? "",
-                      time: active?.time ?? "Recently",
-                      receivedAt: null,
-                    },
-                  ]
-              ).map((message) => (
-                <article
-                  key={message.id}
-                  className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)]"
-                >
-                  <div className="border-b border-[var(--color-line)] px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                        {message.from}
+            {!active ? (
+              <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
+                <p className="kicker">No thread selected</p>
+                <h2 className="mt-2 text-base font-medium text-[var(--color-text)]">
+                  Select an email to preview it here.
+                </h2>
+                <p className="mt-2 max-w-sm text-[13px] leading-6 text-[var(--color-text-soft)]">
+                  Open a thread from the mail list or run a Gmail search to read
+                  messages and draft replies with KODA.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="border-b border-[var(--color-line)] px-4 py-4 sm:px-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-medium tracking-tight text-[var(--color-text)] sm:text-lg">
+                        {active.subject}
+                      </h2>
+                      <p className="mt-1 text-[13px] text-[var(--color-text-soft)]">
+                        {active.from}
+                        {active.to ? ` · to ${active.to}` : ""} · {active.time}
                       </p>
-                      <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                        {message.time}
-                      </span>
                     </div>
-                    {message.to && (
-                      <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-soft)]">
-                        to {message.to}
+                    <button
+                      type="button"
+                      onClick={extractActiveCommitment}
+                      disabled={commitmentBusy}
+                      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                    >
+                      {commitmentBusy
+                        ? "Extracting..."
+                        : active.commitment
+                          ? "Re-extract"
+                          : "Extract commitment"}
+                    </button>
+                  </div>
+                  {commitmentStatus && (
+                    <p className="mt-2 text-[12px] text-[var(--color-text-soft)]">
+                      {commitmentStatus}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-3 px-4 py-5 sm:px-5">
+                  {(active.messages.length
+                    ? active.messages
+                    : [
+                        {
+                          id: `${active.id}-fallback`,
+                          from: active.from,
+                          to: active.to ?? null,
+                          body: active.body ?? active.preview,
+                          preview: active.preview,
+                          time: active.time,
+                          receivedAt: null,
+                        },
+                      ]
+                  ).map((message) => (
+                    <article
+                      key={message.id}
+                      className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)]"
+                    >
+                      <div className="border-b border-[var(--color-line)] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                            {message.from}
+                          </p>
+                          <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                            {message.time}
+                          </span>
+                        </div>
+                        {message.to && (
+                          <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-soft)]">
+                            to {message.to}
+                          </p>
+                        )}
+                      </div>
+                      <div className="email-md px-3 py-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.body}
+                        </ReactMarkdown>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                {active?.commitment && (
+                  <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3.5 sm:mx-5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+                      <p className="kicker text-[var(--color-accent)]">
+                        Extracted commitment
+                      </p>
+                    </div>
+                    <p className="mt-2.5 text-[14px] leading-6 font-medium text-[var(--color-text)]">
+                      {active.commitment.title}
+                    </p>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+                      {[
+                        ["Owner", active.commitment.owner],
+                        ["Counterparty", active.commitment.counterparty],
+                        ["Deadline", active.commitment.deadline],
+                        ["Confidence", active.commitment.confidence],
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex justify-between gap-2">
+                          <dt className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
+                            {k}
+                          </dt>
+                          <dd className="truncate text-[var(--color-text-muted)]">
+                            {v}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={openCommand}
+                        className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
+                      >
+                        Draft reply
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEventOpen(true);
+                          setEventStatus(null);
+                          setEventForm((current) => ({
+                            ...current,
+                            title: active.commitment?.title ?? current.title,
+                          }));
+                        }}
+                        className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
+                      >
+                        Add to calendar →
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3 sm:mx-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="kicker">Reply from KODA</p>
+                    <button
+                      type="button"
+                      onClick={draftReplyWithAi}
+                      disabled={draftBusy || replyBusy}
+                      title="Draft reply using AI"
+                      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                    >
+                      {draftBusy ? "Drafting..." : "AI draft"}
+                    </button>
+                  </div>
+                  <textarea
+                    value={replyText}
+                    onChange={(event) => setReplyText(event.target.value)}
+                    placeholder="Write a reply..."
+                    rows={5}
+                    className="mt-3 max-h-44 min-h-28 w-full resize-none overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+                  />
+                  <div className="mt-2 min-h-5">
+                    {replyStatus && (
+                      <p className="truncate text-[12px] text-[var(--color-text-soft)]">
+                        {replyStatus}
                       </p>
                     )}
                   </div>
-                  <div className="email-md px-3 py-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.body}
-                    </ReactMarkdown>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={sendReply}
+                      disabled={replyBusy || !replyText.trim()}
+                      className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium whitespace-nowrap text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+                    >
+                      {replyBusy ? "Sending..." : "Send reply"}
+                    </button>
+                    {replyText && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyText("");
+                          setReplyStatus(null);
+                        }}
+                        disabled={replyBusy || draftBusy}
+                        className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
-                </article>
-              ))}
-            </div>
-
-            {active?.commitment && (
-              <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3.5 sm:mx-5">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-                  <p className="kicker text-[var(--color-accent)]">
-                    Extracted commitment
-                  </p>
                 </div>
-                <p className="mt-2.5 text-[14px] leading-6 font-medium text-[var(--color-text)]">
-                  {active.commitment.title}
-                </p>
-                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-                  {[
-                    ["Owner", active.commitment.owner],
-                    ["Counterparty", active.commitment.counterparty],
-                    ["Deadline", active.commitment.deadline],
-                    ["Confidence", active.commitment.confidence],
-                  ].map(([k, v]) => (
-                    <div key={k} className="flex justify-between gap-2">
-                      <dt className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
-                        {k}
-                      </dt>
-                      <dd className="truncate text-[var(--color-text-muted)]">
-                        {v}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={openCommand}
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
-                  >
-                    Draft reply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openCommand}
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
-                  >
-                    Add to calendar →
-                  </button>
-                </div>
-              </div>
+              </>
             )}
-            <div className="mx-4 mb-5 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3.5 sm:mx-5">
-              <p className="kicker">Reply from KODA</p>
-              <textarea
-                value={replyText}
-                onChange={(event) => setReplyText(event.target.value)}
-                placeholder="Write a reply..."
-                rows={4}
-                className="mt-3 w-full resize-none rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] leading-6 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
-              />
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={sendReply}
-                  disabled={replyBusy || !replyText.trim()}
-                  className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
-                >
-                  {replyBusy ? "Sending..." : "Send reply"}
-                </button>
-                {replyStatus && (
-                  <p className="text-right text-[12px] text-[var(--color-text-soft)]">
-                    {replyStatus}
-                  </p>
-                )}
-              </div>
-            </div>
           </div>
         </section>
       )}
@@ -837,7 +1474,11 @@ export function WorkspaceConsole({
             <button
               type="button"
               onClick={() => {
-                setEventOpen((open) => !open);
+                setEventOpen((open) => {
+                  const next = !open;
+                  if (next) setEventForm(defaultQuickEvent(now));
+                  return next;
+                });
                 setEventStatus(null);
               }}
               className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
@@ -883,61 +1524,13 @@ export function WorkspaceConsole({
             {/* Agenda + linked deadline */}
             <div className="p-3">
               {eventOpen && (
-                <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-                  <p className="kicker">Create event</p>
-                  <div className="mt-2 space-y-2">
-                    <input
-                      value={eventForm.title}
-                      onChange={(event) =>
-                        setEventForm((current) => ({
-                          ...current,
-                          title: event.target.value,
-                        }))
-                      }
-                      placeholder="Title"
-                      className="w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12px] text-[var(--color-text)] outline-none"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="datetime-local"
-                        value={eventForm.start}
-                        onChange={(event) =>
-                          setEventForm((current) => ({
-                            ...current,
-                            start: event.target.value,
-                          }))
-                        }
-                        className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[11px] text-[var(--color-text)] outline-none"
-                      />
-                      <input
-                        type="datetime-local"
-                        value={eventForm.end}
-                        onChange={(event) =>
-                          setEventForm((current) => ({
-                            ...current,
-                            end: event.target.value,
-                          }))
-                        }
-                        className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[11px] text-[var(--color-text)] outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={createQuickEvent}
-                      disabled={eventBusy || !eventForm.title.trim()}
-                      className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
-                    >
-                      {eventBusy ? "Creating..." : "Create"}
-                    </button>
-                    {eventStatus && (
-                      <p className="text-right text-[12px] text-[var(--color-text-soft)]">
-                        {eventStatus}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <QuickEventComposer
+                  form={eventForm}
+                  setForm={setEventForm}
+                  busy={eventBusy}
+                  status={eventStatus}
+                  onCreate={createQuickEvent}
+                />
               )}
 
               {active?.commitment && (

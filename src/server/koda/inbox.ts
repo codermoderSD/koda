@@ -186,15 +186,38 @@ function normalizeMessage(message: GmailMessage): InboxMessage[] {
 
 export async function getInboxThreads(options?: {
   maxResults?: number;
+  q?: string;
   tenantId?: string;
 }): Promise<InboxThread[]> {
   const page = await getInboxThreadPage(options);
   return page.threads;
 }
 
+export async function getInboxThread(
+  threadId: string,
+  tenantId?: string,
+): Promise<InboxThread | null> {
+  const id = threadId.trim();
+  if (!id) return null;
+
+  const resolvedTenantId = tenantId ?? (await getTenantId());
+  const gmail = corsair.withTenant(resolvedTenantId).gmail;
+
+  try {
+    const thread = await gmail.api.threads.get({
+      id,
+      format: "full",
+    });
+    return normalizeThread(thread);
+  } catch {
+    return null;
+  }
+}
+
 export async function getInboxThreadPage(options?: {
   maxResults?: number;
   pageToken?: string;
+  q?: string;
   tenantId?: string;
 }): Promise<InboxThreadPage> {
   const tenantId = options?.tenantId ?? (await getTenantId());
@@ -204,6 +227,7 @@ export async function getInboxThreadPage(options?: {
     const list = await gmail.api.threads.list({
       maxResults: options?.maxResults ?? 12,
       pageToken: options?.pageToken,
+      q: options?.q,
       includeSpamTrash: false,
     });
 
