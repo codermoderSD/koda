@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+import { DictationButton } from "./dictation-button";
+import { KodaLogo } from "../../_components/koda-logo";
 
 type ActiveThreadContext = {
   id: string;
@@ -81,6 +84,7 @@ type KodaResponseComponent =
 
 export function CommandBar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState<ChatResponse | null>(null);
   const [activeThread, setActiveThread] = useState<ActiveThreadContext | null>(
@@ -289,11 +293,13 @@ export function CommandBar() {
     }
   }
 
+  if (pathname?.startsWith("/profile")) return null;
+
   return (
     <div className="fixed inset-x-0 bottom-[57px] z-30 lg:bottom-0 lg:left-[256px]">
       <div className="relative mx-auto max-w-3xl px-3 pb-3 sm:px-4">
         {popupOpen && (
-          <div className="absolute right-3 bottom-full left-3 mb-2 max-h-[60vh] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] sm:right-4 sm:left-4">
+          <div className="pop absolute right-3 bottom-full left-3 mb-2 max-h-[60vh] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] sm:right-4 sm:left-4">
             {response && (
               <KodaResponseRenderer
                 response={response}
@@ -307,9 +313,11 @@ export function CommandBar() {
         )}
 
         {/* Docked input */}
-        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] px-3 py-2 shadow-[var(--shadow-soft)]">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-text)] font-mono text-[10px] font-medium text-[var(--color-surface)]">
-            K
+        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] px-3 py-2 shadow-[var(--shadow-soft)] transition-colors duration-200 focus-within:border-[var(--color-accent)]">
+          <span
+            className={`flex h-5 w-5 shrink-0 ${busy ? "animate-pulse" : ""}`}
+          >
+            <KodaLogo markClassName="h-5 w-5" />
           </span>
           <textarea
             ref={inputRef}
@@ -321,14 +329,35 @@ export function CommandBar() {
             placeholder="Ask KODA to search, write replies, or manage calendar events…"
             className="max-h-20 min-h-5 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent text-[14px] leading-5 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:cursor-not-allowed disabled:opacity-60"
           />
+          <DictationButton
+            value={query}
+            onChange={onChange}
+            onSubmit={() => void submit()}
+            disabled={inlineInputActive || busy}
+          />
           {query.trim() ? (
             <button
               type="button"
               onClick={() => void submit()}
               disabled={busy || inlineInputActive}
-              className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white transition hover:bg-[var(--color-accent-strong)]"
+              className="tap shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
             >
-              {busy ? "Running" : "↵ Run"}
+              {busy ? (
+                <span className="inline-flex items-center gap-1">
+                  Running
+                  <span className="inline-flex gap-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="h-1 w-1 animate-bounce rounded-full bg-current"
+                        style={{ animationDelay: `${i * 120}ms` }}
+                      />
+                    ))}
+                  </span>
+                </span>
+              ) : (
+                "↵ Run"
+              )}
             </button>
           ) : (
             <kbd className="shrink-0 rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-soft)]">
@@ -424,15 +453,24 @@ function KodaResponseRenderer({
         type="button"
         onClick={onClose}
         aria-label="Close KODA response"
-        className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
+        className="tap absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
       >
-        ×
+        <svg
+          viewBox="0 0 16 16"
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
       </button>
       <div className="flex items-start gap-2.5 text-[13px] leading-6 text-[var(--color-text)]">
         <span
           className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(response.status)}`}
         />
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="stagger min-w-0 flex-1 space-y-3">
           {response.message && <MarkdownText text={response.message} />}
           {visibleComponents.map((component, index) => (
             <KodaComponent

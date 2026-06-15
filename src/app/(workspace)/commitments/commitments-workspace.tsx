@@ -45,10 +45,45 @@ function Lane({
           {count} {countLabel}
         </span>
       </div>
-      <div className="divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <div className="stagger divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {children}
       </div>
     </section>
+  );
+}
+
+function EmptyLane({ kind }: { kind: "outbound" | "inbound" }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] text-[var(--color-text-soft)]">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {kind === "outbound" ? (
+            <path d="M5 12l4 4 10-10" />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 7.5v5l3 2" />
+            </>
+          )}
+        </svg>
+      </span>
+      <p className="text-[13px] font-medium text-[var(--color-text)]">
+        {kind === "outbound" ? "Nothing promised yet" : "Nobody owes you yet"}
+      </p>
+      <p className="mt-1 max-w-[220px] text-[12px] leading-5 text-[var(--color-text-soft)]">
+        Run “Extract from recent mail” and KODA surfaces{" "}
+        {kind === "outbound" ? "what you committed to" : "what others committed"}{" "}
+        here.
+      </p>
+    </div>
   );
 }
 
@@ -153,10 +188,8 @@ export function CommitmentsWorkspace({
     <div className="flex w-full flex-col gap-5 lg:h-full lg:min-h-0">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="kicker">Commitments</p>
-          <h1 className="mt-1.5 text-xl font-medium tracking-tight text-[var(--color-text)] sm:text-2xl">
-            Who owes what
-          </h1>
+          <p className="kicker text-[var(--color-accent)]">Commitments</p>
+          <h1 className="display mt-1.5 text-2xl sm:text-3xl">Who owes what</h1>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <button
@@ -178,9 +211,7 @@ export function CommitmentsWorkspace({
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 xl:grid-cols-[1fr_1fr_280px]">
         <Lane title="Promised by me" count={mine.length} countLabel="active">
           {mine.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-[var(--color-text-soft)]">
-              No outbound commitments extracted yet.
-            </p>
+            <EmptyLane kind="outbound" />
           ) : (
             mine.map((item) => <CommitmentCard key={item.id} item={item} />)
           )}
@@ -192,9 +223,7 @@ export function CommitmentsWorkspace({
           countLabel="tracked"
         >
           {waitingOn.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-[var(--color-text-soft)]">
-              No inbound commitments extracted yet.
-            </p>
+            <EmptyLane kind="inbound" />
           ) : (
             waitingOn.map((item) => (
               <CommitmentCard key={item.id} item={item} />
