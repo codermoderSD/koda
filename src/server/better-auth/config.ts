@@ -6,11 +6,33 @@ import { db } from "~/server/db";
 import { ensureCorsairConnection } from "~/server/koda/connect";
 import * as schema from "~/server/db/schema";
 
-const trustedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  env.BETTER_AUTH_URL,
-].filter((origin): origin is string => Boolean(origin));
+function toOrigin(url: string | undefined) {
+  if (!url) return undefined;
+
+  try {
+    const normalizedUrl = url.startsWith("http") ? url : `https://${url}`;
+    return new URL(normalizedUrl).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+const extraTrustedOrigins =
+  env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
+    .map((origin) => toOrigin(origin.trim()))
+    .filter((origin): origin is string => Boolean(origin)) ?? [];
+
+const trustedOrigins = Array.from(
+  new Set(
+    [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      toOrigin(env.BETTER_AUTH_URL),
+      toOrigin(env.VERCEL_URL),
+      ...extraTrustedOrigins,
+    ].filter((origin): origin is string => Boolean(origin)),
+  ),
+);
 
 async function seedTenant(account: { providerId: string; userId: string }) {
   if (account.providerId !== "google") return;

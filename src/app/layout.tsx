@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { DM_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "KODA",
@@ -38,6 +39,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
+        <Analytics />
         <TRPCReactProvider>{children}</TRPCReactProvider>
       </body>
     </html>
