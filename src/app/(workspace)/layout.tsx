@@ -5,6 +5,7 @@ import { getSession } from "~/server/better-auth/server";
 import { ensureCorsairConnection } from "~/server/koda/connect";
 import { getAiQuota } from "~/server/koda/usage";
 import { AiCredits } from "./_components/ai-credits";
+import { EnquiryForm } from "./_components/enquiry-form";
 import { KodaLogo } from "../_components/koda-logo";
 import { SignInButton } from "../login/sign-in-button";
 import { ThemeToggle } from "../_components/theme-toggle";
@@ -83,6 +84,21 @@ export default async function WorkspaceLayout({
 
         <div className="space-y-3 border-t border-[var(--color-line)] p-3">
           <AiCredits initial={aiQuota} />
+          <EnquiryForm />
+          <div className="flex items-center justify-between px-1 font-mono text-[10px] text-[var(--color-text-soft)]">
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-[var(--color-line)] px-1 py-0.5">
+                ⌘K
+              </kbd>
+              Ask
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-[var(--color-line)] px-1 py-0.5">
+                ⌘⇧K
+              </kbd>
+              Voice
+            </span>
+          </div>
           <SignOutButton full />
         </div>
       </aside>
