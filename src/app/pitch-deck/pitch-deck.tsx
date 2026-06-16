@@ -16,117 +16,294 @@ type IllustrationName =
   | "tech-keynote"
   | "to-do-app";
 
-type Slide = {
-  eyebrow: string;
-  title: string;
-  body: string;
-  bullets: string[];
-  stat?: { value: string; label: string };
-  illustration: IllustrationName;
-};
+/** A headline is a list of segments; `hl` paints the segment in the accent. */
+type Seg = { t: string; hl?: boolean };
+
+type Item = { title: string; body?: string };
+
+type Slide =
+  | {
+      layout: "title";
+      kicker: string;
+      brand: string;
+      headline: Seg[];
+      sub: string;
+      presenter: string;
+      illustration: IllustrationName;
+    }
+  | { layout: "statement"; kicker: string; headline: Seg[]; sub: string }
+  | {
+      layout: "flow";
+      kicker: string;
+      headline: Seg[];
+      steps: string[];
+      footnote?: string;
+    }
+  | {
+      layout: "grid";
+      kicker: string;
+      headline: Seg[];
+      items: Item[];
+      footnote?: Seg[];
+    }
+  | {
+      layout: "circles";
+      kicker: string;
+      headline: Seg[];
+      items: Item[];
+      footnote?: Seg[];
+    }
+  | {
+      layout: "split";
+      kicker: string;
+      headline: Seg[];
+      bullets: string[];
+      illustration: IllustrationName;
+    }
+  | {
+      layout: "closing";
+      kicker: string;
+      headline: Seg[];
+      sub: string;
+      cta: string;
+    };
 
 const slides: Slide[] = [
   {
-    eyebrow: "01 / Title",
-    title: "KODA",
-    body: "The execution layer for email and calendar. KODA turns Gmail and Google Calendar into an AI workspace for commitments, follow-ups, drafts, scheduling, and operational follow-through.",
-    bullets: ["Gmail", "Google Calendar", "AI execution", "Commitments"],
-    stat: {
-      value: "1",
-      label: "workspace for mail, calendar, and follow-through",
-    },
-    illustration: "tech-keynote",
-  },
-  {
-    eyebrow: "02 / Problem",
-    title: "Important work starts in email but rarely ends there.",
-    body: "People make promises, ask for decisions, suggest meetings, and defer follow-ups inside threads. Gmail stores the conversation and Calendar stores time, but neither reliably tracks what must happen next.",
-    bullets: [
-      "Promises get buried in long threads.",
-      "Follow-ups depend on memory.",
-      "Calendar work is disconnected from email context.",
+    layout: "title",
+    kicker: "Pitch · 2026",
+    brand: "KODA",
+    headline: [
+      { t: "the " },
+      { t: "execution layer", hl: true },
+      { t: " for " },
+      { t: "email", hl: true },
+      { t: " and " },
+      { t: "calendar", hl: true },
     ],
-    stat: {
-      value: "lost",
-      label: "context between messages, meetings, and deadlines",
-    },
-    illustration: "comment-sent",
-  },
-  {
-    eyebrow: "03 / Solution",
-    title: "KODA turns communication into execution.",
-    body: "KODA connects Gmail and Google Calendar into one AI workspace that extracts commitments, drafts replies, schedules meetings, creates calendar blocks, and keeps follow-through visible.",
-    bullets: [
-      "Find what matters across live Gmail and Calendar data.",
-      "Track commitments by owner, counterparty, deadline, and status.",
-      "Act through drafts, events, follow-ups, and AI commands.",
-    ],
-    stat: { value: "AI", label: "that does work across email and calendar" },
-    illustration: "ai-data-extraction",
-  },
-  {
-    eyebrow: "04 / Product",
-    title: "Inbox, calendar, commitments, and command bar.",
-    body: "KODA is organized around the real work surface: email threads, calendar time, extracted commitments, and an execution command bar that can search, draft, schedule, and act.",
-    bullets: [
-      "Inbox with thread-aware AI actions.",
-      "Calendar with event search and scheduling workflows.",
-      "Commitments split into promised by me and waiting on others.",
-    ],
-    stat: { value: "4", label: "core surfaces connected by one workflow" },
-    illustration: "to-do-app",
-  },
-  {
-    eyebrow: "05 / Architecture",
-    title: "A workflow-specific data layer for follow-through.",
-    body: "KODA syncs Gmail and Calendar through Corsair, stores normalized operational data in Postgres, and exposes AI tools over that structured workspace state.",
-    bullets: [
-      "Acquisition: Gmail, Calendar, OAuth, and webhooks.",
-      "Operational data: email, calendar, commitments, settings, and usage.",
-      "Execution: AI tools that draft, search, schedule, and update state.",
-    ],
-    stat: { value: "Postgres", label: "as the operational memory layer" },
-    illustration: "charts",
-  },
-  {
-    eyebrow: "06 / Market",
-    title: "Built for relationship-driven work.",
-    body: "KODA targets users whose output depends on external communication, fast follow-up, and accurate scheduling across many active threads.",
-    bullets: [
-      "Founders, operators, recruiters, and executive assistants.",
-      "Sales, partnerships, account management, and customer success teams.",
-      "Consultants, legal teams, and finance teams managing client threads.",
-    ],
-    stat: {
-      value: "B2B",
-      label: "workflows where missed follow-ups cost money",
-    },
+    sub: "Turn email commitments into tracked execution — replies, calendar blocks, and completed work.",
+    presenter: "Shubham Dalvi",
     illustration: "online-meetings",
   },
   {
-    eyebrow: "07 / Go-to-market",
-    title:
-      "Start with high-urgency individual workflows, then expand to teams.",
-    body: "KODA can enter through founders, operators, recruiters, and assistants who feel follow-up pain immediately, then grow into shared team workspaces once commitments become collaborative.",
-    bullets: [
-      "Launch with Google Workspace users who already live in Gmail and Calendar.",
-      "Use review-ready demos, founder-led onboarding, and workflow templates.",
-      "Expand from personal execution to delegated team ownership.",
+    layout: "statement",
+    kicker: "The problem",
+    headline: [
+      { t: "work starts in " },
+      { t: "email", hl: true },
+      { t: " but rarely " },
+      { t: "ends there", hl: true },
     ],
-    stat: { value: "land", label: "with individuals, expand through teams" },
-    illustration: "content-team",
+    sub: "Promises, decisions, and follow-ups get made inside threads — then live or die by memory.",
   },
   {
-    eyebrow: "08 / Roadmap",
-    title: "From personal execution to team operating layer.",
-    body: "The next step is shared execution: teams, delegated ownership, SLAs, proactive reminders, meeting preparation, and integrations with the systems where work lands.",
-    bullets: [
-      "Team workspaces and shared commitments.",
-      "Slack, Notion, Linear, GitHub, and CRM integrations.",
-      "Admin analytics and AI reliability evals.",
+    layout: "flow",
+    kicker: "Where it breaks",
+    headline: [{ t: "every promise becomes a " }, { t: "loose end", hl: true }],
+    steps: [
+      "promise made",
+      "thread buried",
+      "follow-up forgotten",
+      "deadline missed",
+      "trust lost",
     ],
-    stat: { value: "next", label: "shared commitments and team execution" },
-    illustration: "morning-plans",
+    footnote:
+      "Gmail stores the conversation. Calendar stores time. Neither tracks what happens next.",
+  },
+  {
+    layout: "statement",
+    kicker: "The cost",
+    headline: [
+      { t: "missed follow-ups cost " },
+      { t: "revenue", hl: true },
+      { t: ", " },
+      { t: "time", hl: true },
+      { t: ", and " },
+      { t: "trust", hl: true },
+    ],
+    sub: "The work that slips is usually the work that mattered most.",
+  },
+  {
+    layout: "statement",
+    kicker: "Why now",
+    headline: [{ t: "ai can finally " }, { t: "read communication", hl: true }],
+    sub: "But most email AI stops at summaries and drafts. The loop between a promise and its follow-through is still wide open.",
+  },
+  {
+    layout: "statement",
+    kicker: "The solution",
+    headline: [
+      { t: "koda turns communication into " },
+      { t: "execution", hl: true },
+    ],
+    sub: "One AI workspace over live Gmail and Google Calendar — extract commitments, draft replies, schedule meetings, and close the loop.",
+  },
+  {
+    layout: "flow",
+    kicker: "How it works",
+    headline: [
+      { t: "from connected inbox to " },
+      { t: "closed loop", hl: true },
+    ],
+    steps: [
+      "connect google",
+      "extract commitments",
+      "schedule next action",
+      "send the reply",
+      "close the loop",
+    ],
+  },
+  {
+    layout: "grid",
+    kicker: "The product",
+    headline: [{ t: "four surfaces, " }, { t: "one loop", hl: true }],
+    items: [
+      {
+        title: "inbox",
+        body: "Live Gmail threads with thread-aware AI actions.",
+      },
+      {
+        title: "commitments",
+        body: "Promised by me and waiting on others, scored by deadline and confidence.",
+      },
+      {
+        title: "calendar",
+        body: "Google Calendar with deadlines overlaid and prep blocks built from threads.",
+      },
+      {
+        title: "agent",
+        body: "Drafts replies, creates invites, and answers from KODA's own data.",
+      },
+    ],
+    footnote: [
+      { t: "one " },
+      { t: "workspace", hl: true },
+      { t: ", not four tabs." },
+    ],
+  },
+  {
+    layout: "split",
+    kicker: "The wedge",
+    headline: [
+      { t: "a " },
+      { t: "commitment-aware", hl: true },
+      { t: " inbox and calendar" },
+    ],
+    bullets: [
+      "what I promised",
+      "what others owe me",
+      "what needs a reply",
+      "what's at risk of slipping",
+    ],
+    illustration: "to-do-app",
+  },
+  {
+    layout: "grid",
+    kicker: "Why different",
+    headline: [{ t: "we optimize for " }, { t: "follow-through", hl: true }],
+    items: [
+      {
+        title: "faster replies",
+        body: "Context and drafts ready inside the thread.",
+      },
+      {
+        title: "nothing slips",
+        body: "Every commitment tracked through to done.",
+      },
+      {
+        title: "less mental load",
+        body: "Stop re-reading the inbox just to remember.",
+      },
+      {
+        title: "compounding memory",
+        body: "Tenant-scoped operational state that grows.",
+      },
+    ],
+    footnote: [
+      { t: "follow-through, " },
+      { t: "not", hl: true },
+      { t: " faster drafting." },
+    ],
+  },
+  {
+    layout: "circles",
+    kicker: "Architecture",
+    headline: [
+      { t: "a data layer built for " },
+      { t: "follow-through", hl: true },
+    ],
+    items: [
+      { title: "acquisition", body: "Gmail, Calendar & webhooks via Corsair" },
+      { title: "operational data", body: "Normalized state in Postgres" },
+      { title: "decision", body: "Classification, extraction & priority" },
+      { title: "execution", body: "AI tools that act and update state" },
+    ],
+    footnote: [
+      { t: "model-flexible " },
+      { t: "by design", hl: true },
+      { t: "." },
+    ],
+  },
+  {
+    layout: "grid",
+    kicker: "Market",
+    headline: [
+      { t: "built for " },
+      { t: "relationship-driven work", hl: true },
+    ],
+    items: [
+      { title: "founders & operators" },
+      { title: "sales & partnerships" },
+      { title: "recruiters & assistants" },
+      { title: "consultants, legal & finance" },
+    ],
+    footnote: [
+      { t: "b2b workflows where missed follow-ups " },
+      { t: "cost money", hl: true },
+      { t: "." },
+    ],
+  },
+  {
+    layout: "grid",
+    kicker: "Traction",
+    headline: [
+      { t: "a " },
+      { t: "live prototype", hl: true },
+      { t: ", already executing" },
+    ],
+    items: [
+      { title: "google sign-in & gmail sync" },
+      { title: "calendar search & actions" },
+      { title: "ai agent & reply drafting" },
+      { title: "commitment extraction & ai quota" },
+    ],
+    footnote: [{ t: "deployed at " }, { t: "koda.shubhamdalvi.in", hl: true }],
+  },
+  {
+    layout: "circles",
+    kicker: "What's coming",
+    headline: [
+      { t: "from personal execution to " },
+      { t: "team operating layer", hl: true },
+    ],
+    items: [
+      { title: "team workspaces", body: "Shared commitments & ownership" },
+      { title: "integrations", body: "Slack, Notion, Linear, GitHub, CRM" },
+      { title: "proactive", body: "Reminders & meeting prep" },
+      { title: "analytics", body: "Execution health & AI evals" },
+    ],
+    footnote: [
+      { t: "execution " },
+      { t: "compounds", hl: true },
+      { t: " over time." },
+    ],
+  },
+  {
+    layout: "closing",
+    kicker: "The ask",
+    headline: [{ t: "help us " }, { t: "close the loop", hl: true }],
+    sub: "Looking for feedback, product validation, and design partners to turn the prototype into the operating layer for relationship-driven work.",
+    cta: "koda.shubhamdalvi.in",
   },
 ];
 
@@ -135,7 +312,7 @@ const illustrationAssets: Record<
   { alt: string; src: string }
 > = {
   "ai-data-extraction": {
-    alt: "AI data extraction workflow illustration",
+    alt: "AI data extraction illustration",
     src: "/pitch-deck/ai-data-extraction.svg",
   },
   charts: {
@@ -151,7 +328,7 @@ const illustrationAssets: Record<
     src: "/pitch-deck/content-team.svg",
   },
   "morning-plans": {
-    alt: "Planning roadmap illustration",
+    alt: "Planning illustration",
     src: "/pitch-deck/morning-plans.svg",
   },
   "online-meetings": {
@@ -159,7 +336,7 @@ const illustrationAssets: Record<
     src: "/pitch-deck/online-meetings.svg",
   },
   "tech-keynote": {
-    alt: "Technology presentation illustration",
+    alt: "Keynote illustration",
     src: "/pitch-deck/tech-keynote.svg",
   },
   "to-do-app": {
@@ -172,19 +349,66 @@ function clampSlide(index: number) {
   return Math.max(0, Math.min(slides.length - 1, index));
 }
 
+/** Mixed-weight headline: accent segments inherit the accent color. */
+function Headline({
+  parts,
+  className = "",
+}: {
+  parts: Seg[];
+  className?: string;
+}) {
+  return (
+    <h1
+      className={`max-w-full text-[length:var(--h)] leading-[1.04] font-medium tracking-[-0.03em] break-words hyphens-none text-[var(--color-text)] lowercase [--h:clamp(1.9rem,6vw,5rem)] ${className}`}
+    >
+      {parts.map((p, i) => (
+        <span
+          key={i}
+          className={p.hl ? "text-[var(--color-accent)]" : undefined}
+        >
+          {p.t}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
+function Footnote({ parts }: { parts: Seg[] }) {
+  return (
+    <p className="text-xl leading-snug font-medium tracking-[-0.02em] text-[var(--color-text-soft)] lowercase sm:text-3xl">
+      {parts.map((p, i) => (
+        <span
+          key={i}
+          className={p.hl ? "text-[var(--color-accent)]" : undefined}
+        >
+          {p.t}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export function PitchDeck() {
   const [active, setActive] = useState(0);
   const slide = slides[active]!;
 
   const goTo = useCallback((index: number) => setActive(clampSlide(index)), []);
-  const previous = useCallback(
-    () => setActive((index) => clampSlide(index - 1)),
-    [],
-  );
-  const next = useCallback(
-    () => setActive((index) => clampSlide(index + 1)),
-    [],
-  );
+  const previous = useCallback(() => setActive((i) => clampSlide(i - 1)), []);
+  const next = useCallback(() => setActive((i) => clampSlide(i + 1)), []);
+
+  // Deep-link each slide via the URL hash (#3 → slide 3). Shareable + resumable.
+  useEffect(() => {
+    const fromHash = Number(window.location.hash.replace("#", ""));
+    if (Number.isFinite(fromHash) && fromHash >= 1)
+      setActive(clampSlide(fromHash - 1));
+  }, []);
+
+  useEffect(() => {
+    const hash = `#${active + 1}`;
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }, [active]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -196,123 +420,315 @@ export function PitchDeck() {
       if (event.key === "Home") goTo(0);
       if (event.key === "End") goTo(slides.length - 1);
     }
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goTo, next, previous]);
 
   const progress = useMemo(
-    () => `${Math.round(((active + 1) / slides.length) * 100)}%`,
+    () => `${((active + 1) / slides.length) * 100}%`,
     [active],
   );
+  const isTitle = slide.layout === "title";
+  const atStart = active === 0;
+  const atEnd = active === slides.length - 1;
 
   return (
-    <main className="relative isolate min-h-screen overflow-hidden px-5 py-5 sm:px-6">
+    <main className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-[var(--color-surface)] px-6 py-7 sm:px-12 sm:py-9 lg:px-20">
       <div className="aurora" aria-hidden />
       <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
 
-      <header className="mx-auto flex max-w-7xl items-center justify-between">
-        <KodaLogo showWordmark />
+      {/* hairline progress */}
+      <div className="absolute inset-x-0 top-0 h-px bg-[var(--color-line)]">
+        <div
+          className="h-px bg-[var(--color-accent)] transition-all duration-500"
+          style={{ width: progress }}
+        />
+      </div>
+
+      {/* top chrome: kicker / logo + nav */}
+      <header className="flex items-start justify-between gap-4">
+        {isTitle ? (
+          <KodaLogo markClassName="h-8 w-8" />
+        ) : (
+          <p className="kicker text-[11px] text-[var(--color-text-soft)]">
+            {slide.kicker}
+          </p>
+        )}
+
         <div className="flex items-center gap-2">
-          <span className="hidden font-mono text-[11px] tracking-[0.12em] text-[var(--color-text-soft)] uppercase sm:inline">
-            {active + 1} / {slides.length}
-          </span>
-          <ThemeToggle />
+          {isTitle && (
+            <span className="hidden rounded-full border border-[var(--color-line-strong)] px-3 py-1 font-mono text-[11px] tracking-[0.1em] text-[var(--color-text-muted)] sm:inline">
+              {slide.kicker}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={previous}
+            disabled={atStart}
+            aria-label="Previous slide"
+            className="tap inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-line-strong)] text-[var(--color-text)] transition hover:bg-[var(--color-panel)] disabled:pointer-events-none disabled:opacity-25"
+          >
+            <Arrow direction="left" />
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            disabled={atEnd}
+            aria-label="Next slide"
+            className="tap inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-accent)] text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-30"
+          >
+            <Arrow direction="right" />
+          </button>
         </div>
       </header>
 
-      <section className="mx-auto flex min-h-[calc(100vh-104px)] max-w-7xl flex-col justify-center py-6">
-        <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_84%,transparent)] shadow-[var(--shadow-soft)]">
-          <div
-            className="h-1 bg-[var(--color-accent)] transition-all duration-300"
-            style={{ width: progress }}
-          />
-
-          <div className="grid min-h-[min(760px,calc(100vh-168px))] items-center gap-8 p-5 sm:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
-            <div className="relative z-10">
-              <p className="kicker text-[var(--color-accent)]">
-                {slide.eyebrow}
-              </p>
-              <h1 className="mt-5 max-w-3xl text-4xl leading-[1.04] font-medium text-[var(--color-text)] sm:text-6xl">
-                {slide.title}
-              </h1>
-              <p className="mt-6 max-w-2xl text-[16px] leading-8 text-[var(--color-text-muted)] sm:text-lg">
-                {slide.body}
-              </p>
-
-              <div className="mt-8 grid gap-3">
-                {slide.bullets.map((bullet) => (
-                  <div
-                    key={bullet}
-                    className="flex items-start gap-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3.5 py-3 text-[14px] leading-6 text-[var(--color-text-muted)]"
-                  >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
-                    <span>{bullet}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative">
-              <PitchIllustration name={slide.illustration} />
-              {slide.stat && (
-                <div className="mt-4 rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
-                  <p className="text-3xl font-medium text-[var(--color-text)]">
-                    {slide.stat.value}
-                  </p>
-                  <p className="mt-1 text-[13px] leading-6 text-[var(--color-text-muted)]">
-                    {slide.stat.label}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 border-t border-[var(--color-line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-            <div className="flex items-center gap-1.5">
-              {slides.map((item, index) => (
-                <button
-                  key={item.eyebrow}
-                  type="button"
-                  onClick={() => goTo(index)}
-                  aria-label={`Go to slide ${index + 1}`}
-                  className={`h-2 rounded-full transition-all ${
-                    index === active
-                      ? "w-8 bg-[var(--color-accent)]"
-                      : "w-2 bg-[var(--color-line-strong)] hover:bg-[var(--color-text-soft)]"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={previous}
-                disabled={active === 0}
-                className="tap inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] text-[var(--color-text)] transition hover:bg-[var(--color-panel-strong)] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="Previous slide"
-              >
-                <ArrowIcon direction="left" />
-              </button>
-              <button
-                type="button"
-                onClick={next}
-                disabled={active === slides.length - 1}
-                className="tap inline-flex h-10 items-center gap-2 rounded-[var(--radius)] bg-[var(--color-accent)] px-4 text-[13px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                Next
-                <ArrowIcon direction="right" />
-              </button>
-            </div>
-          </div>
+      {/* stage */}
+      <section className="flex flex-1 items-center py-10">
+        <div key={active} className="pop w-full">
+          {slide.layout === "title" && <TitleSlide slide={slide} />}
+          {slide.layout === "statement" && <StatementSlide slide={slide} />}
+          {slide.layout === "flow" && <FlowSlide slide={slide} />}
+          {slide.layout === "grid" && <GridSlide slide={slide} />}
+          {slide.layout === "circles" && <CirclesSlide slide={slide} />}
+          {slide.layout === "split" && <SplitSlide slide={slide} />}
+          {slide.layout === "closing" && <ClosingSlide slide={slide} />}
         </div>
       </section>
+
+      {/* bottom chrome: domain + theme + page */}
+      <footer className="flex items-end justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[12px] tracking-[0.04em] text-[var(--color-text-soft)]">
+            koda.shubhamdalvi.in
+          </span>
+          <ThemeToggle />
+        </div>
+        <span className="font-mono text-[12px] tracking-[0.08em] text-[var(--color-text-soft)] tabular-nums">
+          {String(active + 1).padStart(2, "0")} /{" "}
+          {String(slides.length).padStart(2, "0")}
+        </span>
+      </footer>
     </main>
   );
 }
 
-function ArrowIcon({ direction }: { direction: "left" | "right" }) {
+/* ───────────────────────── layouts ───────────────────────── */
+
+function TitleSlide({ slide }: { slide: Extract<Slide, { layout: "title" }> }) {
+  return (
+    <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <p className="font text-[clamp(1.25rem,2vw,2rem)] leading-none tracking-[-0.04em] text-[var(--color-text)]">
+          {slide.brand}
+        </p>
+        <Headline
+          parts={slide.headline}
+          className="mt-5 max-w-3xl [--h:clamp(1.5rem,4.6vw,2.9rem)]"
+        />
+        <p className="mt-7 max-w-xl text-base leading-7 text-[var(--color-text-muted)] sm:text-lg">
+          {slide.sub}
+        </p>
+        <div className="mt-12">
+          <p className="kicker text-[var(--color-text-soft)]">Presented by</p>
+          <p className="mt-1.5 text-lg text-[var(--color-text)]">
+            {slide.presenter}
+          </p>
+        </div>
+      </div>
+      <div className="hidden lg:block">
+        <FlatIllustration name={slide.illustration} />
+      </div>
+    </div>
+  );
+}
+
+function StatementSlide({
+  slide,
+}: {
+  slide: Extract<Slide, { layout: "statement" }>;
+}) {
+  return (
+    <div className="max-w-5xl">
+      <Headline parts={slide.headline} />
+      <p className="mt-8 max-w-2xl text-lg leading-8 text-[var(--color-text-muted)] sm:text-xl">
+        {slide.sub}
+      </p>
+    </div>
+  );
+}
+
+function FlowSlide({ slide }: { slide: Extract<Slide, { layout: "flow" }> }) {
+  return (
+    <div>
+      <Headline
+        parts={slide.headline}
+        className="max-w-4xl [--h:clamp(1.9rem,5vw,3.6rem)]"
+      />
+      <div className="mt-12 flex flex-col items-stretch gap-3 sm:flex-row sm:items-stretch sm:gap-2">
+        {slide.steps.map((step, i) => (
+          <div key={step} className="contents">
+            <div className="flex min-h-[64px] flex-1 items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--color-line-strong)] px-4 py-5 text-center text-[15px] leading-snug text-[var(--color-text-muted)] sm:min-h-[128px]">
+              {step}
+            </div>
+            {i < slide.steps.length - 1 && (
+              <span className="flex shrink-0 rotate-90 items-center justify-center self-center text-[var(--color-accent)] sm:rotate-0">
+                <Arrow direction="right" />
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {slide.footnote && (
+        <p className="mt-12 max-w-2xl text-base leading-7 text-[var(--color-text-soft)] sm:text-lg">
+          {slide.footnote}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function GridSlide({ slide }: { slide: Extract<Slide, { layout: "grid" }> }) {
+  return (
+    <div>
+      <Headline
+        parts={slide.headline}
+        className="max-w-4xl [--h:clamp(1.9rem,5vw,3.6rem)]"
+      />
+      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {slide.items.map((item) => (
+          <div
+            key={item.title}
+            className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-line-strong)] p-6 sm:p-8"
+          >
+            <p className="text-xl font-medium text-[var(--color-text)] lowercase">
+              {item.title}
+            </p>
+            {item.body && (
+              <p className="mt-2.5 text-[14px] leading-6 text-[var(--color-text-muted)]">
+                {item.body}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      {slide.footnote && (
+        <div className="mt-10 flex justify-end">
+          <Footnote parts={slide.footnote} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CirclesSlide({
+  slide,
+}: {
+  slide: Extract<Slide, { layout: "circles" }>;
+}) {
+  return (
+    <div>
+      <Headline
+        parts={slide.headline}
+        className="max-w-4xl [--h:clamp(1.9rem,5vw,3.6rem)]"
+      />
+      <div className="mt-12 grid grid-cols-2 justify-items-center gap-6 lg:flex lg:flex-nowrap lg:justify-between">
+        {slide.items.map((item, i) => (
+          <div
+            key={item.title}
+            className={`flex aspect-square w-36 flex-col items-center justify-center rounded-full border px-5 text-center sm:w-44 lg:w-48 ${
+              i % 2 === 0
+                ? "border-transparent bg-[var(--color-accent-soft)]"
+                : "border-[var(--color-line-strong)] bg-[var(--color-panel)]"
+            }`}
+          >
+            <p className="text-[15px] font-medium text-[var(--color-text)] lowercase sm:text-base">
+              {item.title}
+            </p>
+            {item.body && (
+              <p className="mt-1.5 text-[11px] leading-4 text-[var(--color-text-muted)] sm:text-[12px] sm:leading-5">
+                {item.body}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      {slide.footnote && (
+        <div className="mt-12 flex justify-end">
+          <Footnote parts={slide.footnote} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SplitSlide({ slide }: { slide: Extract<Slide, { layout: "split" }> }) {
+  return (
+    <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <Headline
+          parts={slide.headline}
+          className="max-w-2xl [--h:clamp(1.7rem,5vw,3.4rem)]"
+        />
+        <ul className="mt-10 grid gap-3">
+          {slide.bullets.map((b) => (
+            <li
+              key={b}
+              className="flex items-center gap-3.5 text-lg text-[var(--color-text-muted)] sm:text-xl"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+              {b}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="hidden lg:block">
+        <FlatIllustration name={slide.illustration} />
+      </div>
+    </div>
+  );
+}
+
+function ClosingSlide({
+  slide,
+}: {
+  slide: Extract<Slide, { layout: "closing" }>;
+}) {
+  return (
+    <div className="max-w-4xl">
+      <Headline parts={slide.headline} />
+      <p className="mt-8 max-w-2xl text-lg leading-8 text-[var(--color-text-muted)] sm:text-xl">
+        {slide.sub}
+      </p>
+      <a
+        href={`https://${slide.cta}`}
+        target="_blank"
+        rel="noreferrer"
+        className="tap mt-12 inline-flex items-center gap-2.5 rounded-full bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
+      >
+        {slide.cta}
+        <Arrow direction="right" />
+      </a>
+    </div>
+  );
+}
+
+/* ───────────────────────── primitives ───────────────────────── */
+
+function FlatIllustration({ name }: { name: IllustrationName }) {
+  const asset = illustrationAssets[name];
+  return (
+    <Image
+      src={asset.src}
+      alt={asset.alt}
+      width={900}
+      height={680}
+      priority={name === "online-meetings"}
+      className="ml-auto h-[min(46vh,420px)] w-full max-w-md object-contain"
+    />
+  );
+}
+
+function Arrow({ direction }: { direction: "left" | "right" }) {
   return (
     <svg
       viewBox="0 0 20 20"
@@ -330,31 +746,5 @@ function ArrowIcon({ direction }: { direction: "left" | "right" }) {
         <path d="m8 4 6 6-6 6M13 10H5" />
       )}
     </svg>
-  );
-}
-
-function PitchIllustration({ name }: { name: IllustrationName }) {
-  const asset = illustrationAssets[name];
-
-  return (
-    <IllustrationFrame>
-      <Image
-        src={asset.src}
-        alt={asset.alt}
-        width={900}
-        height={680}
-        priority={name === "tech-keynote"}
-        className="mx-auto h-[min(42vh,360px)] w-full object-contain"
-      />
-    </IllustrationFrame>
-  );
-}
-
-function IllustrationFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface)_88%,transparent)] p-4 shadow-[var(--shadow-soft)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,color-mix(in_oklab,var(--color-accent)_22%,transparent),transparent_34%),radial-gradient(circle_at_88%_78%,color-mix(in_oklab,var(--color-warning)_14%,transparent),transparent_40%)]" />
-      <div className="relative">{children}</div>
-    </div>
   );
 }

@@ -2,6 +2,10 @@
 
 **KODA is the execution layer for email and calendar.**
 
+KODA turns email commitments into tracked execution — replies, calendar blocks, and completed work. One AI workspace over live Gmail and Google Calendar.
+
+Live at [koda.shubhamdalvi.in](https://koda.shubhamdalvi.in) · see the interactive deck at `/pitch-deck` and [docs/pitch-deck.md](docs/pitch-deck.md).
+
 Most inbox tools optimize for speed of communication. That is not the real job. The real job is making sure commitments made in email actually turn into replies, calendar blocks, decisions, and delivered work.
 
 KODA is built around a sharper idea:
@@ -183,16 +187,19 @@ That is strategically better because it is:
 
 ## Current Stack
 
-- Next.js
-- TypeScript
-- Postgres
-- Drizzle ORM
-- Better Auth
-- Corsair
-- Gmail integration
-- Google Calendar integration
+- Next.js, React, TypeScript, Tailwind CSS
+- PostgreSQL + Drizzle ORM
+- Better Auth + Google OAuth
+- Gmail and Google Calendar APIs via self-hosted Corsair
+- AI SDK + Groq
+- Zod, TanStack Query, tRPC
+- Vercel and Vercel Analytics
 
 AI models can change over time. The product should stay model-flexible.
+
+## Status
+
+Shipped: Google sign-in, Gmail thread sync/search, Google Calendar search and actions, the AI command bar (agent), AI reply drafting, commitment extraction, AI credit tracking, and privacy/terms pages. Deployed and in use.
 
 ---
 

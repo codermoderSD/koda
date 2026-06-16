@@ -104,7 +104,7 @@ export default async function Home() {
 
       <main className="relative isolate">
         {/* Hero */}
-        <section className="relative isolate flex flex-col items-center pt-16 pb-16 text-center sm:pt-24 sm:pb-24">
+        <section className="relative isolate flex flex-col items-center px-5 pt-16 pb-16 text-center sm:px-6 sm:pt-24 sm:pb-24">
           <div className="aurora" aria-hidden />
           <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
 
@@ -404,7 +404,7 @@ export default async function Home() {
         {/* Capabilities */}
         <section
           id="features"
-          className="mx-auto max-w-6xl scroll-mt-20 py-16 sm:py-24"
+          className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
         >
           <div className="mx-auto max-w-2xl text-center">
             <p className="kicker text-[var(--color-accent)]">Capabilities</p>
@@ -436,7 +436,7 @@ export default async function Home() {
         {/* How it works */}
         <section
           id="how"
-          className="mx-auto max-w-6xl scroll-mt-20 py-16 sm:py-24"
+          className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
         >
           <div className="mx-auto max-w-2xl text-center">
             <p className="kicker text-[var(--color-accent)]">How it works</p>
@@ -466,7 +466,7 @@ export default async function Home() {
         </section>
 
         {/* CTA */}
-        <section className="mx-auto max-w-6xl py-12 sm:py-16">
+        <section className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16">
           <div className="relative isolate overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-6 py-12 text-center sm:px-12 sm:py-16">
             <div className="aurora" aria-hidden />
             <h2 className="display text-3xl sm:text-4xl">
