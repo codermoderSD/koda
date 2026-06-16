@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { getSession } from "~/server/better-auth/server";
 import { ensureCorsairConnection } from "~/server/koda/connect";
+import { getAiQuota } from "~/server/koda/usage";
+import { AiCredits } from "./_components/ai-credits";
 import { KodaLogo } from "../_components/koda-logo";
 import { SignInButton } from "../login/sign-in-button";
 import { ThemeToggle } from "../_components/theme-toggle";
@@ -30,6 +32,8 @@ export default async function WorkspaceLayout({
   const user = session.user;
   const displayName = user.name || user.email;
   const avatar = initials(displayName);
+
+  const aiQuota = await getAiQuota(user.id);
 
   const connection = await ensureCorsairConnection(user.id);
   if (connection === "needs-reconnect") {
@@ -77,7 +81,8 @@ export default async function WorkspaceLayout({
           <ShellNav />
         </div>
 
-        <div className="border-t border-[var(--color-line)] p-3">
+        <div className="space-y-3 border-t border-[var(--color-line)] p-3">
+          <AiCredits initial={aiQuota} />
           <SignOutButton full />
         </div>
       </aside>
