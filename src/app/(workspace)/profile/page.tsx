@@ -30,7 +30,7 @@ export default async function ProfilePage() {
   const settings = await getUserSettings(user.id);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-10">
+    <div className="mx-auto mb-10 flex w-full max-w-3xl flex-col gap-6 pb-10">
       <header>
         <p className="kicker text-[var(--color-accent)]">Account</p>
         <h1 className="display mt-1.5 text-2xl sm:text-3xl">

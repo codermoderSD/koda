@@ -82,7 +82,7 @@ export function ProfileForm({ initial }: { initial: UserSettings }) {
     "rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5 text-[13px] text-[var(--color-text)] outline-none";
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)]">
+    <section className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)]">
       <div className="border-b border-[var(--color-line)] px-5 py-3.5">
         <p className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
           Preferences

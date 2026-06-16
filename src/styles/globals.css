@@ -25,9 +25,9 @@
   --color-text: #f2f4f7;
   --color-text-muted: rgb(242 244 247 / 0.62);
   --color-text-soft: rgb(242 244 247 / 0.4);
-  --color-accent: #6e8bff;
-  --color-accent-strong: #5b7bff;
-  --color-accent-soft: rgb(110 139 255 / 0.12);
+  --color-accent: #34d399;
+  --color-accent-strong: #10b981;
+  --color-accent-soft: rgb(52 211 153 / 0.12);
   --color-success: #4cc38a;
   --color-success-soft: rgb(76 195 138 / 0.12);
   --color-warning: #e8a35c;
@@ -80,9 +80,9 @@ body::after {
   --color-text: #11151c;
   --color-text-muted: rgb(17 21 28 / 0.62);
   --color-text-soft: rgb(17 21 28 / 0.42);
-  --color-accent: #3358ff;
-  --color-accent-strong: #2547ee;
-  --color-accent-soft: rgb(51 88 255 / 0.08);
+  --color-accent: #10b981;
+  --color-accent-strong: #059669;
+  --color-accent-soft: rgb(16 185 129 / 0.08);
   --color-success: #1f8a5b;
   --color-success-soft: rgb(31 138 91 / 0.1);
   --color-warning: #b06a18;
@@ -145,7 +145,7 @@ button {
   transform: translateX(-50%);
   background: radial-gradient(
     circle at center,
-    rgb(110 139 255 / 0.55),
+    rgb(52 211 153 / 0.55),
     transparent 65%
   );
 }
@@ -166,7 +166,7 @@ button {
   opacity: 0.35;
   background: radial-gradient(
     circle at center,
-    rgb(51 88 255 / 0.4),
+    rgb(16 185 129 / 0.4),
     transparent 65%
   );
 }
@@ -429,6 +429,22 @@ button {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-text-soft);
+}
+
+.legal-copy > * + * {
+  margin-top: 1em;
+}
+.legal-copy a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.legal-copy ul {
+  list-style: disc;
+  padding-left: 1.2rem;
+}
+.legal-copy li + li {
+  margin-top: 0.45rem;
 }
 
 /* Rendered email body (markdown). Restrained, reading-pane typography. */

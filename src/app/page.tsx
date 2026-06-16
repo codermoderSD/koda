@@ -125,7 +125,7 @@ export default async function Home() {
           <div className="rise mt-8 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
             <Link
               href={primaryCta.href}
-              className="btn-glow inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--color-accent)] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
+              className="btn-glow inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--color-accent-strong)] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-emerald-600"
             >
               {primaryCta.label}
             </Link>
@@ -258,7 +258,13 @@ export default async function Home() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         >
-                          <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" />
+                          <rect
+                            x="2.5"
+                            y="3.5"
+                            width="11"
+                            height="10"
+                            rx="1.5"
+                          />
                           <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" />
                         </svg>
                         Schedule
@@ -474,9 +480,23 @@ export default async function Home() {
       </main>
 
       <footer className="mx-auto max-w-6xl px-5 sm:px-6">
-        <div className="flex flex-col items-center justify-between gap-2 border-t border-[var(--color-line)] py-6 text-[12px] text-[var(--color-text-soft)] sm:flex-row">
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--color-line)] py-6 text-[12px] text-[var(--color-text-soft)] sm:flex-row">
           <span className="font-mono">KODA · execution layer</span>
-          <span>Self-hosted Corsair · tenant-scoped</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <span>Self-hosted Corsair · tenant-scoped</span>
+            <Link
+              href="/privacy"
+              className="transition hover:text-[var(--color-text)]"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="transition hover:text-[var(--color-text)]"
+            >
+              Terms
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

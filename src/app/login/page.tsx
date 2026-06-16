@@ -117,9 +117,29 @@ export default async function LoginPage() {
             Self-hosted Corsair access stays scoped to your workspace. Revoke
             anytime from your Google account.
           </p>
+          <p className="mt-3 text-center text-[12px] leading-5 text-[var(--color-text-soft)]">
+            By continuing, you agree to the{" "}
+            <Link
+              href="/terms"
+              className="underline decoration-[var(--color-line-strong)] underline-offset-4 transition hover:text-[var(--color-text)]"
+            >
+              Terms
+            </Link>{" "}
+            and acknowledge the{" "}
+            <Link
+              href="/privacy"
+              className="underline decoration-[var(--color-line-strong)] underline-offset-4 transition hover:text-[var(--color-text)]"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
 
           <div className="mt-5 text-[13px] text-[var(--color-text-soft)]">
-            <Link href="/" className="transition hover:text-[var(--color-text)]">
+            <Link
+              href="/"
+              className="transition hover:text-[var(--color-text)]"
+            >
               ← Back to home
             </Link>
           </div>

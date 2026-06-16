@@ -16,7 +16,7 @@ export function KodaLogo({
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`.trim()}>
       <Image
-        src="/icon.svg"
+        src="/icon.png"
         alt=""
         width={32}
         height={32}
