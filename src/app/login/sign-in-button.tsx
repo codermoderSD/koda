@@ -14,13 +14,6 @@ export function SignInButton() {
       const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: "/inbox",
-        scopes: [
-          "openid",
-          "email",
-          "profile",
-          "https://www.googleapis.com/auth/gmail.modify",
-          "https://www.googleapis.com/auth/calendar",
-        ],
       });
 
       if (result?.error) {

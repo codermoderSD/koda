@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getSession } from "~/server/better-auth/server";
+import { getOptionalSession } from "~/server/better-auth/server";
 import { KodaLogo } from "../_components/koda-logo";
 import { ThemeToggle } from "../_components/theme-toggle";
 import { SignInButton } from "./sign-in-button";
@@ -63,7 +63,7 @@ function ScopeIcon({ name }: { name: "mail" | "calendar" | "shield" }) {
 }
 
 export default async function LoginPage() {
-  const session = await getSession();
+  const session = await getOptionalSession();
   if (session) redirect("/inbox");
 
   return (
