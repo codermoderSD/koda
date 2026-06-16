@@ -1,19 +1,27 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 
 export function RouteLoading() {
   const pathname = usePathname();
-  const skeleton = loadingSkeletonFor(pathname);
 
   return (
-    <div className="flex w-full flex-col gap-4 lg:h-full lg:min-h-0">
-      <header className="space-y-2">
-        <Pulse className="h-2.5 w-20" />
-        <Pulse className="h-7 w-64 max-w-[70%]" />
-      </header>
-      <div className="lg:min-h-0 lg:flex-1">{skeleton.node}</div>
-    </div>
+    <SkeletonTheme
+      baseColor="var(--color-panel-strong)"
+      highlightColor="var(--color-surface-3)"
+      borderRadius="var(--radius)"
+      duration={1.4}
+    >
+      <div className="flex w-full flex-col gap-6 lg:h-full lg:min-h-0">
+        <header className="space-y-2">
+          <Skeleton width={72} height={9} />
+          <Skeleton width={240} height={24} />
+        </header>
+        <div className="lg:min-h-0 lg:flex-1">{skeletonFor(pathname)}</div>
+      </div>
+    </SkeletonTheme>
   );
 }
 
@@ -54,219 +62,58 @@ export function RouteError({
   );
 }
 
-function loadingSkeletonFor(pathname: string | null) {
-  if (pathname?.startsWith("/calendar")) {
-    return {
-      title: "Loading calendar",
-      detail: "Preparing events and agenda...",
-      node: <CalendarSkeleton />,
-    };
-  }
-  if (pathname?.startsWith("/commitments")) {
-    return {
-      title: "Loading commitments",
-      detail: "Organizing extracted promises...",
-      node: <CommitmentsSkeleton />,
-    };
-  }
-  if (pathname?.startsWith("/inbox")) {
-    return {
-      title: "Loading inbox",
-      detail: "Syncing Gmail threads and calendar context...",
-      node: <InboxSkeleton />,
-    };
-  }
-  return {
-    title: "Loading KODA",
-    detail: "Preparing the workspace...",
-    node: <DefaultSkeleton />,
-  };
+function skeletonFor(pathname: string | null) {
+  if (pathname?.startsWith("/calendar")) return <CalendarSkeleton />;
+  if (pathname?.startsWith("/commitments")) return <CommitmentsSkeleton />;
+  if (pathname?.startsWith("/inbox")) return <InboxSkeleton />;
+  return <ListSkeleton rows={4} />;
 }
 
-function Pulse({ className = "" }: { className?: string }) {
+/* A simple stack of rows: short label + body line. The minimal unit everywhere. */
+function ListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div
-      className={`shimmer rounded bg-[var(--color-panel-strong)] ${className}`.trim()}
-    />
-  );
-}
-
-function SkeletonFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_76%,transparent)] p-3 shadow-[var(--shadow-soft)]">
-      {children}
-    </div>
-  );
-}
-
-/* Bordered pane with a faux header bar — mirrors the live workspace panes. */
-function SkeletonPane({
-  label,
-  className = "",
-  children,
-}: {
-  label?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] ${className}`.trim()}
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--color-line)] px-3 py-2.5">
-        <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text-soft)] uppercase">
-          {label}
-        </span>
-        <Pulse className="h-4 w-12 rounded-[var(--radius-sm)]" />
-      </div>
-      <div className="flex-1 p-3">{children}</div>
+    <div className="space-y-5">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton width="32%" height={11} />
+          <Skeleton width="80%" height={11} />
+        </div>
+      ))}
     </div>
   );
 }
 
 function InboxSkeleton() {
   return (
-    <div className="grid min-h-[420px] gap-3 lg:grid-cols-[2fr_4fr_2.4fr]">
-      <SkeletonPane label="Mail">
-        <Pulse className="mb-3 h-8 w-full rounded-[var(--radius)]" />
-        <div className="space-y-2">
-          {[0, 1, 2, 3, 4].map((item) => (
-            <div key={item} className="flex items-start gap-3 py-1">
-              <Pulse className="h-8 w-8 shrink-0 rounded-full" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Pulse className="h-2.5 w-1/3" />
-                  <Pulse className="h-2 w-8" />
-                </div>
-                <Pulse className="h-2.5 w-2/3" />
-                <Pulse className="h-2 w-full" />
-                <Pulse className="h-3 w-12 rounded-[var(--radius-sm)]" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </SkeletonPane>
-
-      <SkeletonPane label="Thread" className="hidden lg:flex">
-        <Pulse className="h-3.5 w-2/3" />
-        <Pulse className="mt-2 h-2.5 w-2/5" />
-        <div className="mt-3 flex gap-1.5">
-          <Pulse className="h-6 w-24 rounded-[var(--radius-sm)]" />
-          <Pulse className="h-6 w-20 rounded-[var(--radius-sm)]" />
-        </div>
-        <div className="mt-4 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-          <div className="flex items-center gap-2.5">
-            <Pulse className="h-7 w-7 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Pulse className="h-2.5 w-1/3" />
-              <Pulse className="h-2 w-1/4" />
-            </div>
-          </div>
-          <Pulse className="mt-4 h-2.5 w-full" />
-          <Pulse className="mt-2.5 h-2.5 w-11/12" />
-          <Pulse className="mt-2.5 h-2.5 w-4/5" />
-        </div>
-        <div className="mt-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-          <Pulse className="h-2.5 w-16" />
-          <Pulse className="mt-3 h-20 w-full rounded-[var(--radius-sm)]" />
-        </div>
-      </SkeletonPane>
-
-      <SkeletonPane label="Calendar" className="hidden lg:flex">
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: 7 }, (_, index) => (
-            <Pulse key={index} className="h-12 rounded-[var(--radius)]" />
-          ))}
-        </div>
-        <Pulse className="mt-4 h-2.5 w-20" />
-        <div className="mt-3 space-y-2.5">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="flex items-center gap-2.5">
-              <Pulse className="h-1.5 w-1.5 rounded-full" />
-              <div className="flex-1 space-y-1.5">
-                <Pulse className="h-2.5 w-3/4" />
-                <Pulse className="h-2 w-1/3" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </SkeletonPane>
+    <div className="grid gap-8 lg:grid-cols-[2fr_4fr_2.4fr]">
+      <ListSkeleton rows={6} />
+      <div className="hidden space-y-4 lg:block">
+        <Skeleton width="60%" height={16} />
+        <Skeleton count={5} height={11} />
+      </div>
+      <div className="hidden lg:block">
+        <ListSkeleton rows={3} />
+      </div>
     </div>
   );
 }
 
 function CalendarSkeleton() {
   return (
-    <SkeletonFrame>
-      <div className="grid min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <Pulse className="h-8 w-48" />
-            <Pulse className="h-8 w-36" />
-          </div>
-          <div className="grid grid-cols-7 border-t border-l border-[var(--color-line)]">
-            {Array.from({ length: 49 }, (_, index) => (
-              <div
-                key={index}
-                className="h-14 border-r border-b border-[var(--color-line)] p-2"
-              >
-                {index % 13 === 0 && <Pulse className="h-5 w-full" />}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-3">
-          <Pulse className="h-8 w-28" />
-          {[0, 1, 2].map((item) => (
-            <div
-              key={item}
-              className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3"
-            >
-              <Pulse className="h-3 w-32" />
-              <Pulse className="mt-3 h-2 w-20" />
-            </div>
-          ))}
-        </div>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_240px]">
+      <Skeleton height={360} />
+      <div className="hidden lg:block">
+        <ListSkeleton rows={4} />
       </div>
-    </SkeletonFrame>
+    </div>
   );
 }
 
 function CommitmentsSkeleton() {
   return (
-    <SkeletonFrame>
-      <div className="grid min-h-[360px] gap-4 lg:grid-cols-2">
-        {["Promised by me", "Waiting on others"].map((title) => (
-          <div key={title} className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Pulse className="h-5 w-36" />
-              <Pulse className="h-7 w-16" />
-            </div>
-            {[0, 1, 2].map((item) => (
-              <div
-                key={item}
-                className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-4"
-              >
-                <Pulse className="h-3 w-3/4" />
-                <Pulse className="mt-4 h-2.5 w-full" />
-                <Pulse className="mt-2 h-2.5 w-2/3" />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </SkeletonFrame>
-  );
-}
-
-function DefaultSkeleton() {
-  return (
-    <SkeletonFrame>
-      <div className="mx-auto max-w-md space-y-2 p-3">
-        <Pulse className="h-2.5 w-2/3" />
-        <Pulse className="h-2.5 w-full" />
-        <Pulse className="h-2.5 w-4/5" />
-      </div>
-    </SkeletonFrame>
+    <div className="grid gap-10 lg:grid-cols-2">
+      <ListSkeleton rows={3} />
+      <ListSkeleton rows={3} />
+    </div>
   );
 }

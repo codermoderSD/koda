@@ -9,7 +9,7 @@ import { Analytics } from "@vercel/analytics/next";
 export const metadata: Metadata = {
   title: "KODA",
   description: "The email client that remembers what you promised.",
-  icons: [{ rel: "icon", url: "/icon.png", type: "image/svg+xml" }],
+  icons: [{ rel: "icon", url: "/icon.png", type: "image/png" }],
 };
 
 const dmSans = DM_Sans({
