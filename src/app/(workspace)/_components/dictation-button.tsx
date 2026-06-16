@@ -83,6 +83,18 @@ export function DictationButton({
     };
   }, []);
 
+  // Allow a global keyboard shortcut (⌘⇧K) to toggle voice input.
+  useEffect(() => {
+    function onToggle() {
+      if (disabled) return;
+      if (listening) stop();
+      else start();
+    }
+    window.addEventListener("koda:mic-toggle", onToggle);
+    return () => window.removeEventListener("koda:mic-toggle", onToggle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listening, disabled]);
+
   useEffect(() => {
     if (!listening) return;
 

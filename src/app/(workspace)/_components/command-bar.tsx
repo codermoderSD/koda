@@ -129,13 +129,21 @@ export function CommandBar() {
     setMessages((turns) => [...turns, { role: "user", text }]);
   const appendAssistant = (response: ChatResponse) =>
     setMessages((turns) => [...turns, { role: "assistant", response }]);
-  const clearConversation = () => setMessages([]);
+  const clearConversation = () => {
+    setMessages([]);
+    setQuery("");
+  };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        inputRef.current?.focus();
+        if (e.shiftKey) {
+          // ⌘⇧K → toggle voice input.
+          window.dispatchEvent(new Event("koda:mic-toggle"));
+        } else {
+          inputRef.current?.focus();
+        }
       }
       if (e.key === "Escape") {
         inputRef.current?.blur();
@@ -447,34 +455,52 @@ export function CommandBar() {
               Clear
             </button>
           )}
-          {query.trim() ? (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy || inlineInputActive}
-              className="tap shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
-            >
-              {busy ? (
-                <span className="inline-flex items-center gap-1">
-                  Running
-                  <span className="inline-flex gap-0.5">
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className="h-1 w-1 animate-bounce rounded-full bg-current"
-                        style={{ animationDelay: `${i * 120}ms` }}
-                      />
-                    ))}
+          {query.trim() && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                aria-label="Clear input"
+                className="tap flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={busy || inlineInputActive}
+                className="tap shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
+              >
+                {busy ? (
+                  <span className="inline-flex items-center gap-1">
+                    Running
+                    <span className="inline-flex gap-0.5">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          className="h-1 w-1 animate-bounce rounded-full bg-current"
+                          style={{ animationDelay: `${i * 120}ms` }}
+                        />
+                      ))}
+                    </span>
                   </span>
-                </span>
-              ) : (
-                "↵ Run"
-              )}
-            </button>
-          ) : (
-            <kbd className="shrink-0 rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-soft)]">
-              ⌘K
-            </kbd>
+                ) : (
+                  "↵ Run"
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>
