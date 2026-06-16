@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "commitment_retention_days" integer DEFAULT 7 NOT NULL;

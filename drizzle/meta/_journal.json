@@ -15,6 +15,27 @@
       "when": 1781191653976,
       "tag": "0001_breezy_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781607477407,
+      "tag": "0002_tiny_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781610587314,
+      "tag": "0003_short_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781612240053,
+      "tag": "0004_shocking_stellaris",
+      "breakpoints": true
     }
   ]
 }

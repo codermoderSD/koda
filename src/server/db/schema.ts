@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -26,12 +27,6 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "processed",
   "failed",
 ]);
-export const eventStatusEnum = pgEnum("event_status", [
-  "confirmed",
-  "tentative",
-  "cancelled",
-]);
-
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -151,25 +146,6 @@ export const commitments = pgTable("commitments", {
     .defaultNow(),
 });
 
-export const calendarEvents = pgTable("calendar_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  corsairEventId: text("corsair_event_id").notNull().unique(),
-  title: text("title"),
-  description: text("description"),
-  startTime: timestamp("start_time", { withTimezone: true }),
-  endTime: timestamp("end_time", { withTimezone: true }),
-  attendees: jsonb("attendees"),
-  location: text("location"),
-  meetLink: text("meet_link"),
-  commitmentId: uuid("commitment_id").references(() => commitments.id, {
-    onDelete: "set null",
-  }),
-  status: eventStatusEnum("status").notNull().default("confirmed"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
 export const webhookEvents = pgTable("webhook_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   corsairEventId: text("corsair_event_id").notNull().unique(),
@@ -178,19 +154,6 @@ export const webhookEvents = pgTable("webhook_events", {
   status: webhookStatusEnum("status").notNull().default("pending"),
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-export const agentThreads = pgTable("agent_threads", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  messages: jsonb("messages"),
-  lastAction: text("last_action"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
@@ -215,6 +178,10 @@ export const userSettings = pgTable("user_settings", {
   keyboardShortcutsEnabled: boolean("keyboard_shortcuts_enabled")
     .notNull()
     .default(true),
+  // Auto-remove resolved/expired commitments older than this many days.
+  commitmentRetentionDays: integer("commitment_retention_days")
+    .notNull()
+    .default(7),
 });
 
 export const corsairIntegrations = pgTable("corsair_integrations", {
@@ -284,3 +251,17 @@ export const corsairEvents = pgTable("corsair_events", {
   payload: jsonb("payload").notNull().default({}),
   status: text("status"),
 });
+
+// Per-user, per-day counter for AI requests (daily quota enforcement).
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: text("day").notNull(), // YYYY-MM-DD (UTC)
+    count: integer("count").notNull().default(0),
+  },
+  (table) => [uniqueIndex("ai_usage_user_day_unique").on(table.userId, table.day)],
+);
