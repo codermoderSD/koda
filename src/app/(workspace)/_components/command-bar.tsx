@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,6 +29,19 @@ type ChatResponse = {
   components?: KodaResponseComponent[];
   error?: string;
 };
+
+/** One turn in the ephemeral, in-memory conversation (never persisted). */
+type ChatTurn =
+  | { role: "user"; text: string }
+  | { role: "assistant"; response: ChatResponse };
+
+// Vertical blur dome above the input: taller than wide so it disperses in a
+// soft circle (more vertical, less horizontal) and stays symmetric on both
+// sides — strongest at the input, fading round toward the top and edges.
+const BLUR_MASK =
+  "radial-gradient(76% 100% at 50% 100%, #000 32%, rgba(0,0,0,0.55) 60%, transparent 80%)";
+// Conversation fades only near the very top so the first message stays readable.
+const FADE_MASK = "linear-gradient(to top, #000 84%, transparent 100%)";
 
 type ThreadSummary = {
   id: string;
@@ -86,18 +99,37 @@ export function CommandBar() {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [response, setResponse] = useState<ChatResponse | null>(null);
+  const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [focused, setFocused] = useState(false);
   const [activeThread, setActiveThread] = useState<ActiveThreadContext | null>(
     null,
   );
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  const popupOpen = Boolean(response);
+  // The overlay (blurred backdrop + history panel) is open while the input is
+  // focused or there is conversation to show.
+  const hasHistory = messages.length > 0;
+  const open = focused || hasHistory;
+
+  // Inline follow-up input comes from the most recent assistant turn.
+  const lastAssistantResponse =
+    [...messages].reverse().find((turn) => turn.role === "assistant")
+      ?.response ?? null;
   const inlineInputActive = Boolean(
-    response?.components?.some((component) => component.type === "input"),
+    lastAssistantResponse?.components?.some(
+      (component) => component.type === "input",
+    ),
   );
+
+  const appendUser = (text: string) =>
+    setMessages((turns) => [...turns, { role: "user", text }]);
+  const appendAssistant = (response: ChatResponse) =>
+    setMessages((turns) => [...turns, { role: "assistant", response }]);
+  const clearConversation = () => setMessages([]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -107,7 +139,8 @@ export function CommandBar() {
       }
       if (e.key === "Escape") {
         inputRef.current?.blur();
-        setResponse(null);
+        setFocused(false);
+        clearConversation();
       }
     }
     function onOpen() {
@@ -135,8 +168,12 @@ export function CommandBar() {
     input.style.height = `${Math.min(input.scrollHeight, 80)}px`;
   }, [query]);
 
+  // Keep the latest turn in view as the conversation grows.
+  useEffect(() => {
+    scrollAnchorRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
   function onChange(value: string) {
-    setResponse(null);
     setQuery(value);
   }
 
@@ -161,18 +198,31 @@ export function CommandBar() {
     const message = (messageOverride ?? query).trim();
     if (!message) return;
 
+    // Prior turns become context for this request. Built before appending the
+    // new user turn so the current message isn't duplicated server-side.
+    const history = messages
+      .map((turn) =>
+        turn.role === "user"
+          ? { role: "user" as const, content: turn.text }
+          : {
+              role: "assistant" as const,
+              content: turn.response.message ?? "",
+            },
+      )
+      .filter((turn) => turn.content.trim().length > 0);
+
     setBusy(true);
-    setResponse(null);
+    appendUser(message);
     try {
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const response = await fetch("/api/koda/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, timeZone, activeThread }),
+        body: JSON.stringify({ message, timeZone, activeThread, history }),
       });
       const payload = (await response.json().catch(() => ({}))) as ChatResponse;
       if (!response.ok) {
-        setResponse({
+        appendAssistant({
           status: "error",
           message: payload.message ?? payload.error ?? "Could not run KODA AI.",
           retainPrompt: true,
@@ -186,13 +236,13 @@ export function CommandBar() {
         });
         return;
       }
-      setResponse(payload);
+      appendAssistant(payload);
       refreshChangedData(payload.refresh);
       if (!payload.retainPrompt && payload.status !== "error") {
         setQuery("");
       }
     } catch (error) {
-      setResponse({
+      appendAssistant({
         status: "error",
         message:
           error instanceof Error ? error.message : "Could not run KODA AI.",
@@ -207,6 +257,8 @@ export function CommandBar() {
       });
     } finally {
       setBusy(false);
+      // Each request consumes a daily AI credit — refresh the sidebar meter.
+      window.dispatchEvent(new Event("koda:ai-used"));
     }
   }
 
@@ -249,7 +301,7 @@ export function CommandBar() {
           throw new Error(payload.error ?? "Could not send reply.");
         }
         window.dispatchEvent(new Event("koda:data-refresh"));
-        setResponse({
+        appendAssistant({
           status: "success",
           message: "Reply sent.",
           components: [{ type: "text", text: "Reply sent." }],
@@ -268,14 +320,14 @@ export function CommandBar() {
           throw new Error(payload.error ?? "Could not delete event.");
         }
         window.dispatchEvent(new Event("koda:data-refresh"));
-        setResponse({
+        appendAssistant({
           status: "success",
           message: "Event deleted.",
           components: [{ type: "text", text: "Event deleted." }],
         });
       }
     } catch (error) {
-      setResponse({
+      appendAssistant({
         status: "error",
         message:
           error instanceof Error ? error.message : "Could not run action.",
@@ -296,24 +348,56 @@ export function CommandBar() {
   if (pathname?.startsWith("/profile")) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-[57px] z-30 lg:bottom-0 lg:left-[256px]">
+    <div
+      ref={panelRef}
+      className="fixed inset-x-0 bottom-[57px] z-30 lg:bottom-0 lg:left-[256px]"
+    >
       <div className="relative mx-auto max-w-3xl px-3 pb-3 sm:px-4">
-        {popupOpen && (
-          <div className="pop absolute right-3 bottom-full left-3 mb-2 max-h-[60vh] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] sm:right-4 sm:left-4">
-            {response && (
-              <KodaResponseRenderer
-                response={response}
-                busy={actionBusy}
-                onAction={(action) => void runConfirmableAction(action)}
-                onFollowUp={submitFollowUp}
-                onClose={() => setResponse(null)}
-              />
-            )}
+        {/* Vertical blur dome above the input — symmetric, circular dispersion. */}
+        {open && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-x-4 bottom-full h-[64vh] bg-[color-mix(in_oklab,var(--color-surface)_22%,transparent)] backdrop-blur-2xl"
+            style={{ maskImage: BLUR_MASK, WebkitMaskImage: BLUR_MASK }}
+          />
+        )}
+
+        {/* Conversation — newest by the input, older turns fade out at top. */}
+        {hasHistory && (
+          <div
+            className="pointer-events-none absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-4 sm:inset-x-4"
+            style={{ maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}
+          >
+            <div className="pointer-events-auto flex max-h-full scroll-pt-24 flex-col gap-3 overflow-y-auto overscroll-contain px-1 pt-24 pr-2">
+              {messages.map((turn, index) =>
+                turn.role === "user" ? (
+                  <div key={index} className="pop flex justify-end">
+                    <div className="max-w-[85%] rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3.5 py-2 text-[13px] leading-6 whitespace-pre-wrap text-[var(--color-text)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
+                      {turn.text}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={index}
+                    className="pop max-w-[92%] rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_96%,transparent)] shadow-[var(--shadow-soft)] backdrop-blur-xl"
+                  >
+                    <KodaResponseRenderer
+                      response={turn.response}
+                      busy={actionBusy}
+                      onAction={(action) => void runConfirmableAction(action)}
+                      onFollowUp={submitFollowUp}
+                      onClose={clearConversation}
+                    />
+                  </div>
+                ),
+              )}
+              <div ref={scrollAnchorRef} />
+            </div>
           </div>
         )}
 
         {/* Docked input */}
-        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] px-3 py-2 shadow-[var(--shadow-soft)] transition-colors duration-200 focus-within:border-[var(--color-accent)]">
+        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
           <span
             className={`flex h-5 w-5 shrink-0 ${busy ? "animate-pulse" : ""}`}
           >
@@ -324,6 +408,15 @@ export function CommandBar() {
             rows={1}
             value={query}
             disabled={inlineInputActive}
+            onFocus={() => setFocused(true)}
+            onBlur={(e) => {
+              setFocused(false);
+              // Leaving the whole panel (not jumping to a button inside it)
+              // ends the session and resets conversation context.
+              if (!panelRef.current?.contains(e.relatedTarget as Node | null)) {
+                clearConversation();
+              }
+            }}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask KODA to search, write replies, or manage calendar events…"
@@ -335,6 +428,25 @@ export function CommandBar() {
             onSubmit={() => void submit()}
             disabled={inlineInputActive || busy}
           />
+          {hasHistory && (
+            <button
+              type="button"
+              onClick={clearConversation}
+              className="tap inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-danger-soft)] px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-[var(--color-danger)] uppercase transition hover:bg-[var(--color-danger)] hover:text-white"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" />
+              </svg>
+              Clear
+            </button>
+          )}
           {query.trim() ? (
             <button
               type="button"
@@ -448,24 +560,7 @@ function KodaResponseRenderer({
   );
 
   return (
-    <div className="relative px-3.5 py-3 pr-10">
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close KODA response"
-        className="tap absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
-      >
-        <svg
-          viewBox="0 0 16 16"
-          className="h-3.5 w-3.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        >
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
-      </button>
+    <div className="pop px-3.5 py-3">
       <div className="flex items-start gap-2.5 text-[13px] leading-6 text-[var(--color-text)]">
         <span
           className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(response.status)}`}
@@ -506,6 +601,8 @@ function KodaComponent({
 }) {
   const router = useRouter();
   const followUpRef = useRef<HTMLInputElement>(null);
+  const navigatedRef = useRef(false);
+  const [navPending, startNav] = useTransition();
   const [replyBody, setReplyBody] = useState(
     component.type === "draft_reply" ? component.body : "",
   );
@@ -513,6 +610,24 @@ function KodaComponent({
     component.type === "event_results" ? (component.events[0]?.id ?? "") : "",
   );
   const [followUpValue, setFollowUpValue] = useState("");
+
+  // Open results in the inbox, keeping a spinner up until the route resolves.
+  function openInInbox(href: string, query: string) {
+    window.dispatchEvent(
+      new CustomEvent("koda:email-search-results", { detail: { query } }),
+    );
+    navigatedRef.current = true;
+    startNav(() => router.push(href));
+  }
+
+  // Close the chat once the inbox navigation has finished loading.
+  useEffect(() => {
+    if (navigatedRef.current && !navPending) {
+      navigatedRef.current = false;
+      onClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navPending]);
 
   useEffect(() => {
     if (component.type === "input") {
@@ -531,20 +646,14 @@ function KodaComponent({
           <p className="kicker">Email results</p>
           <button
             type="button"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent("koda:email-search-results", {
-                  detail: {
-                    query: component.query,
-                  },
-                }),
-              );
-              router.push(inboxSearchHref(component.query));
-              onClose();
-            }}
-            className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-1 text-[11px] font-medium text-white"
+            disabled={navPending}
+            onClick={() => openInInbox(inboxSearchHref(component.query), component.query)}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
           >
-            Show in inbox
+            {navPending && (
+              <span className="h-3 w-3 animate-spin rounded-full border border-white/40 border-t-white" />
+            )}
+            {navPending ? "Opening…" : "Show in inbox"}
           </button>
         </div>
         <div className="max-h-56 space-y-1 overflow-y-auto">
@@ -557,18 +666,14 @@ function KodaComponent({
             <button
               key={thread.id}
               type="button"
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent("koda:email-search-results", {
-                    detail: {
-                      query: component.query,
-                    },
-                  }),
-                );
-                router.push(inboxSearchHref(component.query, thread.id));
-                onClose();
-              }}
-              className="block w-full rounded-[var(--radius-sm)] px-2 py-2 text-left transition hover:bg-[var(--color-surface-2)]"
+              disabled={navPending}
+              onClick={() =>
+                openInInbox(
+                  inboxSearchHref(component.query, thread.id),
+                  component.query,
+                )
+              }
+              className="block w-full rounded-[var(--radius-sm)] px-2 py-2 text-left transition hover:bg-[var(--color-surface-2)] disabled:opacity-60"
             >
               <p className="truncate text-[12px] font-medium text-[var(--color-text)]">
                 {thread.subject}

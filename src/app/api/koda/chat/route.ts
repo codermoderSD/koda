@@ -11,11 +11,23 @@ import {
   type KodaCalendarEvent,
 } from "~/server/koda/calendar";
 import { getInboxThreadPage } from "~/server/koda/inbox";
+import { consumeAiQuota } from "~/server/koda/usage";
 
 const chatSchema = z.object({
   message: z.string().min(1),
   mode: z.enum(["ask", "search", "draft", "schedule"]).optional(),
   timeZone: z.string().min(1).optional(),
+  // Prior turns of the in-memory conversation, oldest first. Lets follow-ups
+  // resolve against earlier prompts/answers. Cleared when the chat is closed.
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+      }),
+    )
+    .max(20)
+    .optional(),
   activeThread: z
     .object({
       id: z.string().min(1),
@@ -1049,6 +1061,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Daily per-user AI request quota.
+    const quota = await consumeAiQuota(session.user.id);
+    if (!quota.allowed) {
+      const message = `Daily limit reached — you've used all ${quota.limit} KODA requests for today. Try again tomorrow.`;
+      return NextResponse.json(
+        {
+          status: "error",
+          message,
+          retainPrompt: true,
+          components: [{ type: "text", text: message }],
+        },
+        { status: 429 },
+      );
+    }
+
     const input = chatSchema.parse(await request.json());
     const timeZone = normalizeTimeZone(input.timeZone);
     const normalizedInput = normalizePromptTimeText(input.message);
@@ -1135,10 +1162,16 @@ export async function POST(request: Request) {
       ? `${modeInstructions(mode)}\n\nUser request: ${normalizedMessage}`
       : normalizedMessage;
 
+    // Carry the prior conversation so follow-ups have context. The current
+    // prompt is appended as the final user turn.
+    const priorTurns = (input.history ?? [])
+      .filter((turn) => turn.content.trim().length > 0)
+      .map((turn) => ({ role: turn.role, content: turn.content }));
+
     const result = await generateText({
       model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
       system: systemPrompt(session.user, timeZone),
-      prompt,
+      messages: [...priorTurns, { role: "user" as const, content: prompt }],
       tools: buildKodaAiTools(session.user.id, { timeZone }),
       ...policy,
       stopWhen: stepCountIs(8),
@@ -1151,21 +1184,31 @@ export async function POST(request: Request) {
       components: [{ type: "text", text: result.text }],
     });
   } catch (error) {
+    const raw = error instanceof Error ? error.message : "";
+    const message = friendlyChatError(raw);
     return NextResponse.json(
       {
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Could not run KODA AI.",
+        message,
         retainPrompt: true,
-        components: [
-          {
-            type: "text",
-            text:
-              error instanceof Error ? error.message : "Could not run KODA AI.",
-          },
-        ],
+        components: [{ type: "text", text: message }],
       },
       { status: 400 },
     );
   }
+}
+
+/** Map noisy provider errors to short, human messages for the chat UI. */
+function friendlyChatError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("rate limit") || lower.includes("tokens per day")) {
+    return "KODA is busy right now (model rate limit). Give it a minute and try again.";
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return "That took too long. Please try again.";
+  }
+  if (lower.includes("network") || lower.includes("fetch failed")) {
+    return "Network hiccup reaching the AI. Please try again.";
+  }
+  return "Something went wrong running that. Please try again.";
 }
