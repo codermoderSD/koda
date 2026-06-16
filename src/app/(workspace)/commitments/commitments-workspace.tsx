@@ -88,9 +88,26 @@ function EmptyLane({ kind }: { kind: "outbound" | "inbound" }) {
 }
 
 function CommitmentCard({ item }: { item: KodaCommitment }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"done" | "remove" | null>(null);
   const overdue = item.deadline
     ? new Date(item.deadline).getTime() < Date.now()
     : false;
+  const expired = item.status === "expired";
+
+  async function mutate(method: "PATCH" | "DELETE", kind: "done" | "remove") {
+    setBusy(kind);
+    try {
+      const response = await fetch(
+        `/api/koda/commitments/${encodeURIComponent(item.id)}`,
+        { method },
+      );
+      if (!response.ok) throw new Error("request failed");
+      router.refresh();
+    } catch {
+      setBusy(null);
+    }
+  }
 
   return (
     <article className="px-4 py-3.5">
@@ -100,7 +117,7 @@ function CommitmentCard({ item }: { item: KodaCommitment }) {
         </h3>
         <span
           className={`shrink-0 rounded-[var(--radius-sm)] px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap ${
-            overdue
+            overdue || expired
               ? "bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
               : "bg-[var(--color-warning-soft)] text-[var(--color-warning)]"
           }`}
@@ -117,9 +134,31 @@ function CommitmentCard({ item }: { item: KodaCommitment }) {
           {item.rawQuote}
         </p>
       )}
-      <div className="mt-2 flex flex-wrap gap-2 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
-        <span>{item.status}</span>
-        <span>{confidenceLabel(item.confidence)} confidence</span>
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
+          <span className={expired ? "text-[var(--color-danger)]" : undefined}>
+            {item.status}
+          </span>
+          <span>{confidenceLabel(item.confidence)} confidence</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => void mutate("PATCH", "done")}
+            disabled={busy !== null}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:border-[var(--color-line-strong)] hover:text-[var(--color-text)] disabled:opacity-60"
+          >
+            {busy === "done" ? "…" : "Done"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void mutate("DELETE", "remove")}
+            disabled={busy !== null}
+            className="rounded-[var(--radius-sm)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-soft)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] disabled:opacity-60"
+          >
+            {busy === "remove" ? "…" : "Remove"}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -134,13 +173,18 @@ export function CommitmentsWorkspace({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const mine = useMemo(
-    () => commitments.filter((item) => item.type === "OUTBOUND"),
+  // Resolved (done) commitments drop out of the lanes; expired stay flagged.
+  const visible = useMemo(
+    () => commitments.filter((item) => item.status !== "resolved"),
     [commitments],
   );
+  const mine = useMemo(
+    () => visible.filter((item) => item.type === "OUTBOUND"),
+    [visible],
+  );
   const waitingOn = useMemo(
-    () => commitments.filter((item) => item.type === "INBOUND"),
-    [commitments],
+    () => visible.filter((item) => item.type === "INBOUND"),
+    [visible],
   );
   const overdue = commitments.filter(
     (item) => item.deadline && new Date(item.deadline).getTime() < Date.now(),

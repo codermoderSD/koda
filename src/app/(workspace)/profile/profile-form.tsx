@@ -174,6 +174,33 @@ export function ProfileForm({ initial }: { initial: UserSettings }) {
         </Row>
 
         <Row
+          title="Commitment retention"
+          description="Auto-remove resolved/expired commitments after this many days."
+        >
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={form.commitmentRetentionDays}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  commitmentRetentionDays: Math.max(
+                    1,
+                    Math.min(365, Number(e.target.value) || 1),
+                  ),
+                }))
+              }
+              className="w-16 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1.5 text-[13px] text-[var(--color-text)] outline-none"
+            />
+            <span className="text-[12px] text-[var(--color-text-soft)]">
+              days
+            </span>
+          </div>
+        </Row>
+
+        <Row
           title="Keyboard shortcuts"
           description="Enable ⌘K command bar and quick navigation shortcuts."
         >

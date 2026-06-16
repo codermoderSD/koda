@@ -12,6 +12,7 @@ const settingsSchema = z.object({
   autoDraftFollowups: z.boolean(),
   followupLeadTimeHours: z.number().int().min(1).max(168),
   keyboardShortcutsEnabled: z.boolean(),
+  commitmentRetentionDays: z.number().int().min(1).max(365),
 });
 
 export async function saveSettings(

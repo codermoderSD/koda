@@ -11,6 +11,7 @@ export type UserSettings = {
   autoDraftFollowups: boolean;
   followupLeadTimeHours: number;
   keyboardShortcutsEnabled: boolean;
+  commitmentRetentionDays: number;
 };
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -19,24 +20,31 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   autoDraftFollowups: true,
   followupLeadTimeHours: 24,
   keyboardShortcutsEnabled: true,
+  commitmentRetentionDays: 7,
 };
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
-  const [row] = await db
-    .select()
-    .from(userSettings)
-    .where(eq(userSettings.userId, userId))
-    .limit(1);
+  try {
+    const [row] = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .limit(1);
 
-  if (!row) return DEFAULT_USER_SETTINGS;
+    if (!row) return DEFAULT_USER_SETTINGS;
 
-  return {
-    defaultView: row.defaultView,
-    commitmentConfidenceThreshold: Number(row.commitmentConfidenceThreshold),
-    autoDraftFollowups: row.autoDraftFollowups,
-    followupLeadTimeHours: row.followupLeadTimeHours,
-    keyboardShortcutsEnabled: row.keyboardShortcutsEnabled,
-  };
+    return {
+      defaultView: row.defaultView,
+      commitmentConfidenceThreshold: Number(row.commitmentConfidenceThreshold),
+      autoDraftFollowups: row.autoDraftFollowups,
+      followupLeadTimeHours: row.followupLeadTimeHours,
+      keyboardShortcutsEnabled: row.keyboardShortcutsEnabled,
+      commitmentRetentionDays: row.commitmentRetentionDays,
+    };
+  } catch {
+    // Tolerate a not-yet-migrated DB so the app keeps working.
+    return DEFAULT_USER_SETTINGS;
+  }
 }
 
 export async function upsertUserSettings(
@@ -50,6 +58,7 @@ export async function upsertUserSettings(
     autoDraftFollowups: values.autoDraftFollowups,
     followupLeadTimeHours: values.followupLeadTimeHours,
     keyboardShortcutsEnabled: values.keyboardShortcutsEnabled,
+    commitmentRetentionDays: values.commitmentRetentionDays,
   };
 
   await db

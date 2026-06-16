@@ -2,7 +2,7 @@ import "server-only";
 
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { env } from "~/env";
@@ -128,6 +128,51 @@ export async function listCommitments(limit = 80): Promise<KodaCommitment[]> {
     .limit(limit);
 
   return rows.map(mapCommitmentRow);
+}
+
+/** Mark a commitment done — keeps the row but drops it from the active lanes. */
+export async function resolveCommitment(id: string): Promise<void> {
+  await db
+    .update(commitments)
+    .set({ status: "resolved", resolvedAt: new Date() })
+    .where(eq(commitments.id, id));
+}
+
+/** Permanently remove a single commitment. */
+export async function deleteCommitment(id: string): Promise<void> {
+  await db.delete(commitments).where(eq(commitments.id, id));
+}
+
+/**
+ * Remove resolved/expired commitments older than `retentionDays`, and mark
+ * still-active ones past that age as expired. Runs on each commitments load.
+ */
+export async function purgeExpiredCommitments(retentionDays = 7): Promise<void> {
+  const days = Number.isFinite(retentionDays) ? Math.max(1, retentionDays) : 7;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  try {
+    // Done/expired items past the window are deleted outright.
+    await db
+      .delete(commitments)
+      .where(
+        and(
+          inArray(commitments.status, ["resolved", "expired"]),
+          lt(commitments.createdAt, cutoff),
+        ),
+      );
+    // Active items past the window expire (still visible, flagged expired).
+    await db
+      .update(commitments)
+      .set({ status: "expired" })
+      .where(
+        and(
+          eq(commitments.status, "active"),
+          lt(commitments.createdAt, cutoff),
+        ),
+      );
+  } catch {
+    // Tolerate a not-yet-migrated DB.
+  }
 }
 
 export async function searchCommitments(query: string | undefined, limit = 20) {
