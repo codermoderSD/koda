@@ -7,9 +7,15 @@ import { sendEmail } from "~/server/koda/gmail-actions";
 const CONTACT_EMAIL = "shubham13developer@gmail.com";
 
 const feedbackSchema = z.object({
-  kind: z.enum(["credits", "product"]).default("product"),
+  kind: z.enum(["credits", "product", "feedback"]).default("product"),
   message: z.string().trim().min(1).max(2000),
 });
+
+const TOPICS: Record<"credits" | "product" | "feedback", string> = {
+  credits: "More AI credits request",
+  product: "Product enquiry",
+  feedback: "Product feedback",
+};
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -21,8 +27,7 @@ export async function POST(request: Request) {
     const input = feedbackSchema.parse(await request.json());
     const userEmail = session.user.email;
     const userName = session.user.name ?? userEmail;
-    const topic =
-      input.kind === "credits" ? "More AI credits request" : "Product enquiry";
+    const topic = TOPICS[input.kind];
 
     const subject = `KODA — ${topic} from ${userName}`;
     const body = [

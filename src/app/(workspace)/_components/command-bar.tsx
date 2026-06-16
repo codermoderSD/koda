@@ -109,6 +109,7 @@ export function CommandBar() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const micListeningRef = useRef(false);
 
   // The overlay (blurred backdrop + history panel) is open while the input is
   // focused or there is conversation to show.
@@ -146,6 +147,9 @@ export function CommandBar() {
         }
       }
       if (e.key === "Escape") {
+        // If the mic is recording, Esc stops the mic only (handled by the
+        // dictation button) — don't also close the chat.
+        if (micListeningRef.current) return;
         inputRef.current?.blur();
         setFocused(false);
         clearConversation();
@@ -158,13 +162,20 @@ export function CommandBar() {
       const detail = (event as CustomEvent<ActiveThreadContext | null>).detail;
       setActiveThread(detail ?? null);
     }
+    function onMicState(event: Event) {
+      micListeningRef.current = Boolean(
+        (event as CustomEvent<{ listening?: boolean }>).detail?.listening,
+      );
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("koda:command-open", onOpen);
     window.addEventListener("koda:active-thread", onActiveThread);
+    window.addEventListener("koda:mic-state", onMicState);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("koda:command-open", onOpen);
       window.removeEventListener("koda:active-thread", onActiveThread);
+      window.removeEventListener("koda:mic-state", onMicState);
     };
   }, []);
 

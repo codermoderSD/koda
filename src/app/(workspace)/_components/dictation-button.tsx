@@ -83,6 +83,13 @@ export function DictationButton({
     };
   }, []);
 
+  // Broadcast listening state so the command bar can route Esc to mic-stop.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("koda:mic-state", { detail: { listening } }),
+    );
+  }, [listening]);
+
   // Allow a global keyboard shortcut (⌘⇧K) to toggle voice input.
   useEffect(() => {
     function onToggle() {
