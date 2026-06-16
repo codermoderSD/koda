@@ -7,6 +7,8 @@ import { KodaLogo } from "../_components/koda-logo";
 import { ThemeToggle } from "../_components/theme-toggle";
 import { SignInButton } from "./sign-in-button";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Sign in | KODA",
   description: "Google sign-in for KODA.",

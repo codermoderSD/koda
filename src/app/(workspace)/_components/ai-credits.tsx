@@ -18,8 +18,11 @@ export function AiCredits({ initial }: { initial: Quota }) {
 
   useEffect(() => {
     // Re-read after each AI request the command bar fires.
-    window.addEventListener("koda:ai-used", refresh);
-    return () => window.removeEventListener("koda:ai-used", refresh);
+    const onAiUsed = () => {
+      void refresh();
+    };
+    window.addEventListener("koda:ai-used", onAiUsed);
+    return () => window.removeEventListener("koda:ai-used", onAiUsed);
   }, [refresh]);
 
   const pct = quota.limit > 0 ? (quota.remaining / quota.limit) * 100 : 0;

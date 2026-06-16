@@ -5,6 +5,8 @@ import { getOptionalSession } from "~/server/better-auth/server";
 
 import { LandingNav } from "./_components/landing-nav";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "KODA | The execution layer for email and calendar",
   description:

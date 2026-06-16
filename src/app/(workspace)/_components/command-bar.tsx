@@ -96,7 +96,6 @@ type KodaResponseComponent =
   | { type: "input"; label: string; name: string; placeholder?: string };
 
 export function CommandBar() {
-  const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<ChatTurn[]>([]);
@@ -455,7 +454,7 @@ export function CommandBar() {
               setFocused(false);
               // Leaving the whole panel (not jumping to a button inside it)
               // ends the session and resets conversation context.
-              if (!panelRef.current?.contains(e.relatedTarget as Node | null)) {
+              if (!panelRef.current?.contains(e.relatedTarget)) {
                 clearConversation();
               }
             }}
