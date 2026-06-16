@@ -131,6 +131,7 @@ export function CommandBar() {
   const appendAssistant = (response: ChatResponse) =>
     setMessages((turns) => [...turns, { role: "assistant", response }]);
   const clearConversation = () => {
+    console.log("Clearing conversation context");
     setMessages([]);
     setQuery("");
   };
@@ -384,7 +385,7 @@ export function CommandBar() {
         {/* Conversation — newest by the input, older turns fade out at top. */}
         {hasHistory && (
           <div
-            className="pointer-events-none absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-4 sm:inset-x-4"
+            className="absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-1 sm:inset-x-4"
             style={{ maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}
           >
             <div className="pointer-events-auto flex max-h-full scroll-pt-24 flex-col gap-3 overflow-y-auto overscroll-contain px-1 pt-24 pr-2">
@@ -412,29 +413,27 @@ export function CommandBar() {
               )}
               <div ref={scrollAnchorRef} />
             </div>
-          </div>
-        )}
-
-        {/* Clear chat — sits just above the input, right-aligned. */}
-        {hasHistory && (
-          <div className="mb-2 flex justify-end">
-            <button
-              type="button"
-              onClick={clearConversation}
-              className="tap pop inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_90%,transparent)] px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-muted)] uppercase shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:border-[var(--color-danger)] hover:text-[var(--color-danger)]"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                className="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              >
-                <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" />
-              </svg>
-              Clear chat
-            </button>
+            {hasHistory && (
+              <div className="flex justify-end px-3">
+                <button
+                  type="button"
+                  onClick={clearConversation}
+                  className="tap pop inline-flex cursor-pointer items-center gap-1 font-mono text-[9.5px] tracking-[0.08em] text-[var(--color-danger)] uppercase shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:underline"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  >
+                    <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" />
+                  </svg>
+                  Clear chat
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -688,7 +687,9 @@ function KodaComponent({
           <button
             type="button"
             disabled={navPending}
-            onClick={() => openInInbox(inboxSearchHref(component.query), component.query)}
+            onClick={() =>
+              openInInbox(inboxSearchHref(component.query), component.query)
+            }
             className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
           >
             {navPending && (
