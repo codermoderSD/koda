@@ -35,15 +35,19 @@ export async function getAiQuota(
 }
 
 /**
- * Atomically count one AI request against today's quota. Returns whether the
- * request is allowed and how many remain. Over-limit requests still increment
- * (and stay rejected) — the counter resets the next day.
+ * Count one successful AI request against today's quota. Callers should check
+ * quota before doing expensive work and only call this after a non-error result.
  */
 export async function consumeAiQuota(
   userId: string,
 ): Promise<{ allowed: boolean; remaining: number; limit: number }> {
   const day = todayKey();
   try {
+    const current = await getAiQuota(userId);
+    if (current.remaining <= 0) {
+      return { allowed: false, remaining: 0, limit: DAILY_AI_LIMIT };
+    }
+
     const [row] = await db
       .insert(aiUsage)
       .values({ userId, day, count: 1 })

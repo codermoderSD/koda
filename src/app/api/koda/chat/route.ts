@@ -11,7 +11,7 @@ import {
   type KodaCalendarEvent,
 } from "~/server/koda/calendar";
 import { getInboxThreadPage } from "~/server/koda/inbox";
-import { consumeAiQuota } from "~/server/koda/usage";
+import { consumeAiQuota, getAiQuota } from "~/server/koda/usage";
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -111,7 +111,13 @@ type KodaChatResponse = {
   components?: KodaResponseComponent[];
 };
 
-function chatResponse(response: KodaChatResponse) {
+async function successfulChatResponse(
+  userId: string,
+  response: KodaChatResponse,
+) {
+  if (response.status !== "error") {
+    await consumeAiQuota(userId);
+  }
   return NextResponse.json(response);
 }
 
@@ -1061,9 +1067,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Daily per-user AI request quota.
-    const quota = await consumeAiQuota(session.user.id);
-    if (!quota.allowed) {
+    // Daily per-user AI request quota. Only successful requests are charged.
+    const quota = await getAiQuota(session.user.id);
+    if (quota.remaining <= 0) {
       const message = `Daily limit reached — you've used all ${quota.limit} KODA requests for today. Try again tomorrow.`;
       return NextResponse.json(
         {
@@ -1090,7 +1096,7 @@ export async function POST(request: Request) {
           wantsActiveThreadDraftIntent(normalizedMessage)))
     ) {
       if (!input.activeThread) {
-        return chatResponse({
+        return successfulChatResponse(session.user.id, {
           status: "needs_input",
           message:
             "Open an email thread first, then ask me to draft the reply.",
@@ -1103,7 +1109,8 @@ export async function POST(request: Request) {
           ],
         });
       }
-      return chatResponse(
+      return successfulChatResponse(
+        session.user.id,
         await draftActiveThreadReply({
           message: normalizedMessage,
           activeThread: input.activeThread,
@@ -1113,7 +1120,8 @@ export async function POST(request: Request) {
     }
 
     if (wantsCalendarDelete(normalizedMessage)) {
-      return chatResponse(
+      return successfulChatResponse(
+        session.user.id,
         await prepareCalendarDelete({
           message: normalizedMessage,
           tenantId: session.user.id,
@@ -1123,7 +1131,8 @@ export async function POST(request: Request) {
     }
 
     if (wantsCalendarEdit(normalizedMessage)) {
-      return chatResponse(
+      return successfulChatResponse(
+        session.user.id,
         await prepareCalendarEdit({
           message: normalizedMessage,
           tenantId: session.user.id,
@@ -1136,7 +1145,8 @@ export async function POST(request: Request) {
       wantsCalendarSearch(normalizedMessage) ||
       (mode === "search" && mentionsCalendar(normalizedMessage.toLowerCase()))
     ) {
-      return chatResponse(
+      return successfulChatResponse(
+        session.user.id,
         await searchCalendar({
           message: normalizedMessage,
           tenantId: session.user.id,
@@ -1149,7 +1159,8 @@ export async function POST(request: Request) {
       wantsEmailSearch(normalizedMessage) ||
       (mode === "search" && mentionsEmail(normalizedMessage.toLowerCase()))
     ) {
-      return chatResponse(
+      return successfulChatResponse(
+        session.user.id,
         await searchEmail({
           message: normalizedMessage,
           tenantId: session.user.id,
@@ -1177,7 +1188,7 @@ export async function POST(request: Request) {
       stopWhen: stepCountIs(8),
     });
 
-    return chatResponse({
+    return successfulChatResponse(session.user.id, {
       status: "success",
       message: result.text,
       refresh: refreshHints(normalizedMessage),

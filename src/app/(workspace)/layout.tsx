@@ -88,13 +88,13 @@ export default async function WorkspaceLayout({
             <div className="space-y-1.5 text-[12px] text-[var(--color-text-muted)]">
               <p className="flex items-center gap-2">
                 <kbd className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text)]">
-                  ⌘K
+                  ⌘ + K
                 </kbd>
                 Ask KODA
               </p>
               <p className="flex items-center gap-2">
                 <kbd className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text)]">
-                  ⌘⇧K
+                  ⌘ + ⇧ + K
                 </kbd>
                 Voice input
               </p>
@@ -144,8 +144,8 @@ export default async function WorkspaceLayout({
       </div>
 
       <CommandBar />
-      <EnquiryDialog />
       <MobileNav />
+      <EnquiryDialog />
     </div>
   );
 }

@@ -257,6 +257,9 @@ export function CommandBar() {
         return;
       }
       appendAssistant(payload);
+      if (payload.status !== "error") {
+        window.dispatchEvent(new Event("koda:ai-used"));
+      }
       refreshChangedData(payload.refresh);
       if (!payload.retainPrompt && payload.status !== "error") {
         setQuery("");
@@ -277,8 +280,6 @@ export function CommandBar() {
       });
     } finally {
       setBusy(false);
-      // Each request consumes a daily AI credit — refresh the sidebar meter.
-      window.dispatchEvent(new Event("koda:ai-used"));
     }
   }
 
