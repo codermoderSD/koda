@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import {
+  type CSSProperties,
   type Dispatch,
   type SetStateAction,
   useEffect,
@@ -13,6 +14,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { DictationButton } from "../_components/dictation-button";
+import { ResizeHandle, usePaneWidths } from "../_components/resizable-panes";
 import { KodaLogo } from "../../_components/koda-logo";
 import type { CalEvent } from "../calendar/calendar-view";
 
@@ -438,48 +440,13 @@ function threadMeetingDescription(thread: Thread) {
     .join("\n\n");
 }
 
-type PaneId = "list" | "detail" | "calendar";
-
-function CollapsedRail({
-  title,
-  onExpand,
-}: {
-  title: string;
-  onExpand: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onExpand}
-      aria-label={`Expand ${title}`}
-      className="flex shrink-0 items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[var(--color-text-soft)] transition hover:text-[var(--color-text)] lg:h-full lg:w-11 lg:flex-col lg:justify-start lg:px-0 lg:py-3"
-    >
-      <svg
-        viewBox="0 0 16 16"
-        className="h-3.5 w-3.5 shrink-0"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      >
-        <path d="M8 3.5v9M3.5 8h9" />
-      </svg>
-      <span className="kicker lg:rotate-180 lg:[writing-mode:vertical-rl]">
-        {title}
-      </span>
-    </button>
-  );
-}
-
 function PaneHeader({
   title,
   count,
-  onCollapse,
   children,
 }: {
   title: string;
   count?: string;
-  onCollapse: () => void;
   children?: React.ReactNode;
 }) {
   return (
@@ -494,26 +461,7 @@ function PaneHeader({
           </span>
         )}
       </div>
-      <div className="flex items-center gap-1">
-        {children}
-        <button
-          type="button"
-          onClick={onCollapse}
-          aria-label={`Collapse ${title}`}
-          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-        >
-          <svg
-            viewBox="0 0 16 16"
-            className="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
-            <path d="M3.5 8h9" />
-          </svg>
-        </button>
-      </div>
+      {children && <div className="flex items-center gap-1">{children}</div>}
     </div>
   );
 }
@@ -540,11 +488,6 @@ export function WorkspaceConsole({
   selectedThreadId?: string;
 }) {
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState<Record<PaneId, boolean>>({
-    list: false,
-    detail: false,
-    calendar: false,
-  });
   const [localThreads, setLocalThreads] = useState(threads);
   const [pageToken, setPageToken] = useState(nextPageToken);
   const [pageBusy, setPageBusy] = useState(false);
@@ -593,6 +536,8 @@ export function WorkspaceConsole({
   const [eventStatus, setEventStatus] = useState<string | null>(null);
   const [eventBusy, setEventBusy] = useState(false);
   const [localEvents, setLocalEvents] = useState(events);
+  const paneContainerRef = useRef<HTMLDivElement>(null);
+  const { widths, adjust } = usePaneWidths();
 
   const FOCUSED_PRIORITIES = new Set([
     "NEW",
@@ -625,7 +570,6 @@ export function WorkspaceConsole({
   const active = selectedId
     ? (allKnownThreads.find((t) => t.id === selectedId) ?? null)
     : null;
-  const toggle = (id: PaneId) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
   const now = useMemo(() => new Date(nowISO), [nowISO]);
 
@@ -1396,20 +1340,35 @@ export function WorkspaceConsole({
     }
   }
 
-  const flex = (id: PaneId, open: string) =>
-    collapsed[id] ? "lg:flex-none" : open;
+  // Convert a horizontal pixel drag into a percentage delta of the pane row.
+  const adjustPct = (
+    key: "mail" | "calendarOpen" | "calendarClosed",
+    deltaPx: number,
+  ) => {
+    const width = paneContainerRef.current?.clientWidth ?? 0;
+    if (width > 0) adjust(key, (deltaPx / width) * 100);
+  };
+
+  const mailBasisStyle = { "--pane-basis": `${widths.mail}%` } as CSSProperties;
+  // Calendar is narrower (2:3:2) with a thread open, wider (4:3) when closed.
+  const calendarBasisStyle = {
+    "--pane-basis": `${active ? widths.calendarOpen : widths.calendarClosed}%`,
+  } as CSSProperties;
 
   return (
-    <div className="flex w-full flex-col gap-3 lg:h-full lg:min-h-0 lg:flex-row">
+    <div
+      ref={paneContainerRef}
+      className="flex w-full flex-col gap-3 lg:h-full lg:min-h-0 lg:flex-row"
+    >
       {/* Mail list */}
-      {collapsed.list ? (
-        <CollapsedRail title="Mail" onExpand={() => toggle("list")} />
-      ) : (
+      {
         <section
-          className={`flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${flex(
-            "list",
-            "lg:flex-[2]",
-          )}`}
+          style={active ? mailBasisStyle : undefined}
+          className={`flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${
+            active
+              ? "lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)"
+              : "lg:flex-1"
+          }`}
         >
           <PaneHeader
             title="Mail"
@@ -1418,7 +1377,6 @@ export function WorkspaceConsole({
                 ? `${visibleThreads.length}/${localSearchThreads.length}`
                 : `${visibleThreads.length}/${localThreads.length}`
             }
-            onCollapse={() => toggle("list")}
           >
             <button
               type="button"
@@ -1628,22 +1586,41 @@ export function WorkspaceConsole({
             )}
           </div>
         </section>
+      }
+
+      {/* Mail | Thread resize handle (3-pane only) */}
+      {active && (
+        <ResizeHandle
+          ariaLabel="Resize mail pane"
+          onResize={(dx) => adjustPct("mail", dx)}
+        />
       )}
 
-      {/* Mail detail */}
-      {collapsed.detail ? (
-        <CollapsedRail title="Thread" onExpand={() => toggle("detail")} />
-      ) : (
-        <section
-          className={`flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${flex(
-            "detail",
-            "lg:flex-[4]",
-          )}`}
-        >
-          <PaneHeader
-            title="Thread"
-            onCollapse={() => toggle("detail")}
-          ></PaneHeader>
+      {/* Mail detail — only mounts when a thread is selected */}
+      {active && (
+        <section className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:flex-1">
+          <PaneHeader title="Thread">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedId(undefined);
+                  router.push(listUrl(mailFilter));
+                }}
+                aria-label="Close thread"
+                className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </PaneHeader>
 
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {!active ? (
@@ -1960,17 +1937,21 @@ export function WorkspaceConsole({
             )}
           </div>
         </section>
-      )}
+        )}
+
+      {/* Thread|Calendar (3-pane) or Mail|Calendar (2-pane) resize handle */}
+      <ResizeHandle
+        ariaLabel="Resize calendar pane"
+        onResize={(dx) =>
+          adjustPct(active ? "calendarOpen" : "calendarClosed", -dx)
+        }
+      />
 
       {/* Calendar */}
-      {collapsed.calendar ? (
-        <CollapsedRail title="Calendar" onExpand={() => toggle("calendar")} />
-      ) : (
+      {
         <section
-          className={`flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${flex(
-            "calendar",
-            "lg:flex-[2.4]",
-          )}`}
+          style={calendarBasisStyle}
+          className="flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)"
         >
           <PaneHeader
             title="Calendar"
@@ -1978,7 +1959,6 @@ export function WorkspaceConsole({
               month: "short",
               year: "numeric",
             })}
-            onCollapse={() => toggle("calendar")}
           >
             <button
               type="button"
@@ -2087,7 +2067,7 @@ export function WorkspaceConsole({
             </div>
           </div>
         </section>
-      )}
+      }
 
       {composeOpen && (
         <div className="pop fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
