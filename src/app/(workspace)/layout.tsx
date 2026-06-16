@@ -82,23 +82,29 @@ export default async function WorkspaceLayout({
           <ShellNav />
         </div>
 
-        <div className="space-y-2.5 border-t border-[var(--color-line)] p-3">
-          <AiCredits initial={aiQuota} />
-          <EnquiryTrigger />
-          <div className="flex items-center justify-center gap-3 font-mono text-[10px] text-[var(--color-text-soft)]">
-            <span>
-              <kbd className="rounded border border-[var(--color-line)] px-1 py-0.5">
-                ⌘K
-              </kbd>{" "}
-              Ask
-            </span>
-            <span>
-              <kbd className="rounded border border-[var(--color-line)] px-1 py-0.5">
-                ⌘⇧K
-              </kbd>{" "}
-              Voice
-            </span>
+        <div className="space-y-4 border-t border-[var(--color-line)] p-4">
+          <div className="space-y-2">
+            <p className="kicker">Shortcuts</p>
+            <div className="space-y-1.5 text-[12px] text-[var(--color-text-muted)]">
+              <p className="flex items-center gap-2">
+                <kbd className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text)]">
+                  ⌘K
+                </kbd>
+                Ask KODA
+              </p>
+              <p className="flex items-center gap-2">
+                <kbd className="rounded border border-[var(--color-line)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text)]">
+                  ⌘⇧K
+                </kbd>
+                Voice input
+              </p>
+            </div>
           </div>
+
+          <EnquiryTrigger />
+
+          <AiCredits initial={aiQuota} />
+
           <SignOutButton full />
         </div>
       </aside>

@@ -415,6 +415,29 @@ export function CommandBar() {
           </div>
         )}
 
+        {/* Clear chat — sits just above the input, right-aligned. */}
+        {hasHistory && (
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={clearConversation}
+              className="tap pop inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_90%,transparent)] px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-muted)] uppercase shadow-[var(--shadow-soft)] backdrop-blur-xl transition hover:border-[var(--color-danger)] hover:text-[var(--color-danger)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" />
+              </svg>
+              Clear chat
+            </button>
+          </div>
+        )}
+
         {/* Docked input */}
         <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
           <span
@@ -447,25 +470,6 @@ export function CommandBar() {
             onSubmit={() => void submit()}
             disabled={inlineInputActive || busy}
           />
-          {hasHistory && (
-            <button
-              type="button"
-              onClick={clearConversation}
-              className="tap inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-line-strong)] bg-[var(--color-danger-soft)] px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-[var(--color-danger)] uppercase transition hover:bg-[var(--color-danger)] hover:text-white"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                className="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              >
-                <path d="M3 4h10M6.5 4V2.8h3V4M5 4l.6 9h4.8L11 4" />
-              </svg>
-              Clear
-            </button>
-          )}
           {query.trim() && (
             <>
               <button
