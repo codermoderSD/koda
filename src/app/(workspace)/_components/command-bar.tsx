@@ -71,6 +71,23 @@ type EventSummary = {
   location: string | null;
 };
 
+type EmailAlias = {
+  id: string;
+  alias: string;
+  email: string;
+  label: string | null;
+};
+
+type EmailDraftSummary = {
+  id: string;
+  messageId: string | null;
+  threadId: string | null;
+  from: string | null;
+  to: string[];
+  subject: string;
+  body: string;
+};
+
 type ConfirmableAction =
   | { type: "delete_event"; eventId: string }
   | { type: "send_reply"; threadId: string; body: string };
@@ -92,6 +109,13 @@ type KodaResponseComponent =
       to: string;
       body: string;
     }
+  | {
+      type: "draft_email";
+      draftId: string;
+      to: string[];
+      subject: string;
+      body: string;
+    }
   | { type: "confirm_action"; label: string; action: ConfirmableAction }
   | { type: "input"; label: string; name: string; placeholder?: string };
 
@@ -103,6 +127,11 @@ export function CommandBar() {
   const [activeThread, setActiveThread] = useState<ActiveThreadContext | null>(
     null,
   );
+  const [drafts, setDrafts] = useState<EmailDraftSummary[]>([]);
+  const [draftsBusy, setDraftsBusy] = useState(false);
+  const [aliases, setAliases] = useState<EmailAlias[]>([]);
+  const [aliasSuggestions, setAliasSuggestions] = useState<EmailAlias[]>([]);
+  const [aliasQuery, setAliasQuery] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -133,7 +162,24 @@ export function CommandBar() {
     console.log("Clearing conversation context");
     setMessages([]);
     setQuery("");
+    setAliasSuggestions([]);
+    setAliasQuery(null);
   };
+
+  async function refreshDrafts() {
+    setDraftsBusy(true);
+    try {
+      const response = await fetch("/api/koda/gmail/drafts", {
+        headers: { Accept: "application/json" },
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        drafts?: EmailDraftSummary[];
+      };
+      if (response.ok) setDrafts(payload.drafts ?? []);
+    } finally {
+      setDraftsBusy(false);
+    }
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -187,6 +233,19 @@ export function CommandBar() {
     input.style.height = `${Math.min(input.scrollHeight, 80)}px`;
   }, [query]);
 
+  useEffect(() => {
+    if (!open) return;
+    void refreshDrafts();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/koda/aliases")
+      .then((r) => r.json())
+      .then((data: { aliases?: EmailAlias[] }) => setAliases(data.aliases ?? []))
+      .catch(() => {});
+  }, [open]);
+
   // Keep the latest turn in view as the conversation grows.
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ block: "end" });
@@ -194,6 +253,33 @@ export function CommandBar() {
 
   function onChange(value: string) {
     setQuery(value);
+    const match = value.match(/(?:^|[\s,])(@[a-zA-Z0-9_-]*)$/);
+    if (match && aliases.length > 0 && match[1] !== undefined) {
+      const handle = match[1];
+      const word = handle.slice(1).toLowerCase();
+      setAliasQuery(handle);
+      setAliasSuggestions(
+        word.length === 0
+          ? aliases
+          : aliases.filter((a) => a.alias.toLowerCase().includes(word)),
+      );
+    } else if (match && aliases.length === 0) {
+      setAliasQuery(null);
+      setAliasSuggestions([]);
+    } else {
+      setAliasQuery(null);
+      setAliasSuggestions([]);
+    }
+  }
+
+  function selectAlias(alias: EmailAlias) {
+    if (!aliasQuery) return;
+    const escaped = aliasQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const next = query.replace(new RegExp(escaped + "$"), alias.email);
+    setQuery(next);
+    setAliasSuggestions([]);
+    setAliasQuery(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -365,6 +451,59 @@ export function CommandBar() {
     }
   }
 
+  async function deleteStoredDraft(draftId: string) {
+    setDraftsBusy(true);
+    try {
+      await fetch(`/api/koda/gmail/drafts/${encodeURIComponent(draftId)}`, {
+        method: "DELETE",
+      });
+      setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    } catch {
+      // silently ignore
+    } finally {
+      setDraftsBusy(false);
+    }
+  }
+
+  async function sendStoredDraft(draftId: string) {
+    setActionBusy(true);
+    try {
+      const response = await fetch(
+        `/api/koda/gmail/drafts/${encodeURIComponent(draftId)}/send`,
+        { method: "POST" },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not send draft.");
+      }
+      window.dispatchEvent(new Event("koda:data-refresh"));
+      await refreshDrafts();
+      appendAssistant({
+        status: "success",
+        message: "Draft sent.",
+        components: [{ type: "text", text: "Draft sent." }],
+      });
+    } catch (error) {
+      appendAssistant({
+        status: "error",
+        message:
+          error instanceof Error ? error.message : "Could not send draft.",
+        retainPrompt: true,
+        components: [
+          {
+            type: "text",
+            text:
+              error instanceof Error ? error.message : "Could not send draft.",
+          },
+        ],
+      });
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   if (pathname?.startsWith("/profile")) return null;
 
   return (
@@ -383,12 +522,21 @@ export function CommandBar() {
         )}
 
         {/* Conversation — newest by the input, older turns fade out at top. */}
-        {hasHistory && (
+        {open && hasHistory && (
           <div
             className="absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-1 sm:inset-x-4"
             style={{ maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}
           >
             <div className="pointer-events-auto flex max-h-full scroll-pt-24 flex-col gap-3 overflow-y-auto overscroll-contain px-1 pt-24 pr-2">
+              {drafts.length > 0 && (
+                <DraftTray
+                  drafts={drafts}
+                  busy={actionBusy || draftsBusy}
+                  onSend={(draftId) => void sendStoredDraft(draftId)}
+                  onDelete={(draftId) => void deleteStoredDraft(draftId)}
+                  onRefresh={() => void refreshDrafts()}
+                />
+              )}
               {messages.map((turn, index) =>
                 turn.role === "user" ? (
                   <div key={index} className="pop flex justify-end">
@@ -406,6 +554,7 @@ export function CommandBar() {
                       busy={actionBusy}
                       onAction={(action) => void runConfirmableAction(action)}
                       onFollowUp={submitFollowUp}
+                      onDraftsChanged={() => void refreshDrafts()}
                       onClose={clearConversation}
                     />
                   </div>
@@ -438,12 +587,72 @@ export function CommandBar() {
         )}
 
         {/* Docked input */}
-        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
+        <div className="relative">
+          {aliasSuggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_97%,transparent)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
+              <p className="px-3 pt-2.5 pb-1 font-mono text-[9.5px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
+                Aliases
+              </p>
+              {aliasSuggestions.slice(0, 5).map((alias) => (
+                <button
+                  key={alias.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectAlias(alias);
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[var(--color-panel-strong)]"
+                >
+                  <span className="text-[13px] font-medium text-[var(--color-accent)]">
+                    @{alias.alias}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--color-text-soft)]">
+                    {alias.email}
+                  </span>
+                  {alias.label && (
+                    <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">
+                      {alias.label}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[0_0_0_2px_var(--color-accent-soft),var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
           <span
             className={`flex h-5 w-5 shrink-0 ${busy ? "animate-pulse" : ""}`}
           >
             <KodaLogo markClassName="h-5 w-5" />
           </span>
+          <div className="relative min-w-0 flex-1 self-center">
+            {/(@[a-zA-Z0-9_-]+)/.test(query) && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 max-h-20 overflow-hidden whitespace-pre-wrap break-words text-[14px] leading-5"
+                style={{ color: "var(--color-text)" }}
+              >
+                {query.split(/(@[a-zA-Z0-9_-]+)/g).map((part, i) =>
+                  /^@[a-zA-Z0-9_-]+$/.test(part) ? (
+                    <span
+                      key={i}
+                      style={{
+                        color: aliases.some(
+                          (a) =>
+                            a.alias.toLowerCase() ===
+                            part.slice(1).toLowerCase(),
+                        )
+                          ? "var(--color-accent)"
+                          : "var(--color-text)",
+                      }}
+                    >
+                      {part}
+                    </span>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  ),
+                )}
+              </div>
+            )}
           <textarea
             ref={inputRef}
             rows={1}
@@ -461,8 +670,9 @@ export function CommandBar() {
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask KODA to search, write replies, or manage calendar events…"
-            className="max-h-20 min-h-5 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent text-[14px] leading-5 text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+            className={`max-h-20 min-h-5 w-full resize-none overflow-y-auto bg-transparent text-[14px] leading-5 outline-none placeholder:text-[var(--color-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 ${/(@[a-zA-Z0-9_-]+)/.test(query) && aliases.length > 0 ? "[color:transparent] [caret-color:var(--color-text)]" : "text-[var(--color-text)]"}`}
           />
+          </div>
           <DictationButton
             value={query}
             onChange={onChange}
@@ -517,6 +727,7 @@ export function CommandBar() {
             </>
           )}
         </div>
+        </div>
       </div>
     </div>
   );
@@ -565,10 +776,85 @@ function inboxSearchHref(query: string, threadId?: string) {
   return `${base}?tab=search&q=${encodeURIComponent(normalized)}`;
 }
 
+function parseAddressList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function MarkdownText({ text }: { text: string }) {
   return (
     <div className="email-md koda-md">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </div>
+  );
+}
+
+function DraftTray({
+  drafts,
+  busy,
+  onSend,
+  onDelete,
+  onRefresh,
+}: {
+  drafts: EmailDraftSummary[];
+  busy: boolean;
+  onSend: (draftId: string) => void;
+  onDelete: (draftId: string) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="pop rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_96%,transparent)] p-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="kicker">Drafted emails</p>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={busy}
+          className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[11px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+        >
+          Refresh
+        </button>
+      </div>
+      <div className="max-h-48 space-y-1 overflow-y-auto">
+        {drafts.map((draft) => (
+          <div
+            key={draft.id}
+            className="flex items-start justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-2"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-medium text-[var(--color-text)]">
+                {draft.subject}
+              </p>
+              <p className="truncate text-[11px] text-[var(--color-text-soft)]">
+                To {draft.to.join(", ") || "Unknown recipient"}
+              </p>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[var(--color-text-muted)]">
+                {draft.body || "No body"}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => onSend(draft.id)}
+                disabled={busy}
+                className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+              >
+                {busy ? "…" : "Send"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(draft.id)}
+                disabled={busy}
+                className="rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] text-[var(--color-text-soft)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] disabled:opacity-60"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -578,6 +864,7 @@ function KodaResponseRenderer({
   busy,
   onAction,
   onFollowUp,
+  onDraftsChanged,
   onClose,
 }: {
   response: ChatResponse;
@@ -587,6 +874,7 @@ function KodaResponseRenderer({
     component: Extract<KodaResponseComponent, { type: "input" }>,
     value: string,
   ) => void;
+  onDraftsChanged: () => void;
   onClose: () => void;
 }) {
   const components = response.components?.length
@@ -614,6 +902,7 @@ function KodaResponseRenderer({
               busy={busy}
               onAction={onAction}
               onFollowUp={onFollowUp}
+              onDraftsChanged={onDraftsChanged}
               onClose={onClose}
             />
           ))}
@@ -628,6 +917,7 @@ function KodaComponent({
   busy,
   onAction,
   onFollowUp,
+  onDraftsChanged,
   onClose,
 }: {
   component: KodaResponseComponent;
@@ -637,6 +927,7 @@ function KodaComponent({
     component: Extract<KodaResponseComponent, { type: "input" }>,
     value: string,
   ) => void;
+  onDraftsChanged: () => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -645,6 +936,19 @@ function KodaComponent({
   const [navPending, startNav] = useTransition();
   const [replyBody, setReplyBody] = useState(
     component.type === "draft_reply" ? component.body : "",
+  );
+  const [emailTo, setEmailTo] = useState(
+    component.type === "draft_email" ? component.to.join(", ") : "",
+  );
+  const [emailSubject, setEmailSubject] = useState(
+    component.type === "draft_email" ? component.subject : "",
+  );
+  const [emailBody, setEmailBody] = useState(
+    component.type === "draft_email" ? component.body : "",
+  );
+  const [emailDraftStatus, setEmailDraftStatus] = useState<string | null>(null);
+  const [emailDraftBusy, setEmailDraftBusy] = useState<"save" | "send" | null>(
+    null,
   );
   const [selectedEventId, setSelectedEventId] = useState(
     component.type === "event_results" ? (component.events[0]?.id ?? "") : "",
@@ -674,6 +978,80 @@ function KodaComponent({
       followUpRef.current?.focus();
     }
   }, [component.type]);
+
+  async function updateGeneratedDraft(createCommitment: boolean) {
+    if (component.type !== "draft_email") return;
+    setEmailDraftBusy("save");
+    setEmailDraftStatus(null);
+    try {
+      const response = await fetch(
+        `/api/koda/gmail/drafts/${encodeURIComponent(component.draftId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: parseAddressList(emailTo),
+            subject: emailSubject,
+            body: emailBody,
+            createCommitment,
+          }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not update draft.");
+      }
+      setEmailDraftStatus(
+        createCommitment
+          ? "Draft stored and commitment created."
+          : "Draft updated.",
+      );
+      onDraftsChanged();
+    } catch (error) {
+      setEmailDraftStatus(
+        error instanceof Error ? error.message : "Could not update draft.",
+      );
+    } finally {
+      setEmailDraftBusy(null);
+    }
+  }
+
+  async function sendGeneratedDraft() {
+    if (component.type !== "draft_email") return;
+    setEmailDraftBusy("send");
+    setEmailDraftStatus(null);
+    try {
+      const response = await fetch(
+        `/api/koda/gmail/drafts/${encodeURIComponent(component.draftId)}/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: parseAddressList(emailTo),
+            subject: emailSubject,
+            body: emailBody,
+          }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not send draft.");
+      }
+      window.dispatchEvent(new Event("koda:data-refresh"));
+      setEmailDraftStatus("Draft sent.");
+      onDraftsChanged();
+    } catch (error) {
+      setEmailDraftStatus(
+        error instanceof Error ? error.message : "Could not send draft.",
+      );
+    } finally {
+      setEmailDraftBusy(null);
+    }
+  }
 
   if (component.type === "text") {
     return <MarkdownText text={component.text} />;
@@ -858,6 +1236,72 @@ function KodaComponent({
             Cancel
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (component.type === "draft_email") {
+    const recipients = parseAddressList(emailTo);
+    const canAct =
+      recipients.length > 0 && emailSubject.trim() && emailBody.trim();
+    return (
+      <div className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+        <p className="kicker">Review email draft</p>
+        <label className="mt-2 block">
+          <span className="text-[11px] text-[var(--color-text-soft)]">To</span>
+          <input
+            value={emailTo}
+            onChange={(event) => setEmailTo(event.target.value)}
+            className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none"
+          />
+        </label>
+        <label className="mt-2 block">
+          <span className="text-[11px] text-[var(--color-text-soft)]">
+            Subject
+          </span>
+          <input
+            value={emailSubject}
+            onChange={(event) => setEmailSubject(event.target.value)}
+            className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none"
+          />
+        </label>
+        <textarea
+          value={emailBody}
+          onChange={(event) => setEmailBody(event.target.value)}
+          rows={8}
+          className="mt-3 w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] leading-6 text-[var(--color-text)] outline-none"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void sendGeneratedDraft()}
+            disabled={busy || emailDraftBusy !== null || !canAct}
+            className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+          >
+            {emailDraftBusy === "send" ? "Sending..." : "Send email"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void updateGeneratedDraft(true)}
+            disabled={busy || emailDraftBusy !== null || !canAct}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+          >
+            {emailDraftBusy === "save" ? "Storing..." : "Store as draft"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy || emailDraftBusy !== null}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1.5 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+        </div>
+        {emailDraftStatus && (
+          <p className="mt-2 text-[11px] text-[var(--color-text-soft)]">
+            {emailDraftStatus}
+          </p>
+        )}
       </div>
     );
   }
