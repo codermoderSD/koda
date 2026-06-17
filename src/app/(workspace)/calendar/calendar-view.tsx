@@ -24,6 +24,14 @@ export type CalEvent = {
   status: string;
 };
 
+type FreeSlot = {
+  start: string;
+  end: string;
+  localStart: string;
+  localEnd: string;
+  label: string;
+};
+
 type View = "day" | "week" | "month";
 type EventFormState = {
   title: string;
@@ -317,6 +325,9 @@ export function CalendarView({
   );
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rescheduleSlots, setRescheduleSlots] = useState<FreeSlot[]>([]);
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+  const [rescheduleStatus, setRescheduleStatus] = useState<string | null>(null);
 
   const selected =
     calendarEvents.find((event) => event.id === selectedId) ?? null;
@@ -398,11 +409,17 @@ export function CalendarView({
     );
   }
 
+  function resetReschedule() {
+    setRescheduleSlots([]);
+    setRescheduleStatus(null);
+  }
+
   function selectEvent(event: CalEvent) {
     setCreating(false);
     setSelectedId(event.id);
     setForm(formFromEvent(event));
     setStatus(null);
+    resetReschedule();
   }
 
   function startCreate() {
@@ -410,12 +427,98 @@ export function CalendarView({
     setSelectedId(null);
     setForm(defaultEventForm(ref));
     setStatus(null);
+    resetReschedule();
   }
 
   function closeEditor() {
     setCreating(false);
     setSelectedId(null);
     setStatus(null);
+    resetReschedule();
+  }
+
+  function rescheduleDuration() {
+    if (selected?.start && selected?.end) {
+      const ms =
+        new Date(selected.end).getTime() - new Date(selected.start).getTime();
+      if (ms > 0) return Math.max(15, Math.round(ms / 60000));
+    }
+    return 30;
+  }
+
+  async function suggestReschedule() {
+    if (!selected) return;
+    setRescheduleBusy(true);
+    setRescheduleStatus(null);
+    setRescheduleSlots([]);
+    try {
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const payload = await readJson<{ slots: FreeSlot[] }>(
+        await fetch("/api/koda/calendar/free-slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            durationMinutes: rescheduleDuration(),
+            horizonDays: 14,
+            timeZone,
+            maxResults: 3,
+          }),
+        }),
+      );
+      setRescheduleSlots(payload.slots);
+      setRescheduleStatus(
+        payload.slots.length > 0
+          ? "Pick a new time — attendees get the update."
+          : "No free slots in the next two weeks.",
+      );
+    } catch (error) {
+      setRescheduleStatus(
+        error instanceof Error ? error.message : "Could not find free slots.",
+      );
+    } finally {
+      setRescheduleBusy(false);
+    }
+  }
+
+  async function applyReschedule(slot: FreeSlot) {
+    if (!selected) return;
+    setRescheduleBusy(true);
+    setRescheduleStatus(null);
+    try {
+      const payload = await readJson<{ event: CalEvent }>(
+        await fetch(
+          `/api/koda/calendar/events/${encodeURIComponent(selected.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...formPayload(form),
+              start: slot.localStart,
+              end: slot.localEnd,
+              allDay: false,
+              sendUpdates: "all",
+            }),
+          },
+        ),
+      );
+      setCalendarEvents((current) =>
+        current.map((event) =>
+          event.id === payload.event.id ? payload.event : event,
+        ),
+      );
+      setSelectedId(payload.event.id);
+      setForm(formFromEvent(payload.event));
+      setRescheduleSlots([]);
+      setRescheduleStatus(null);
+      setStatus(`Rescheduled to ${slot.label}. Attendees notified.`);
+      window.dispatchEvent(new Event("koda:data-refresh"));
+    } catch (error) {
+      setRescheduleStatus(
+        error instanceof Error ? error.message : "Could not reschedule.",
+      );
+    } finally {
+      setRescheduleBusy(false);
+    }
   }
 
   async function createEvent() {
@@ -683,6 +786,11 @@ export function CalendarView({
             onSave={creating ? createEvent : updateEvent}
             onDelete={creating ? undefined : deleteEvent}
             onClose={closeEditor}
+            rescheduleSlots={rescheduleSlots}
+            rescheduleBusy={rescheduleBusy}
+            rescheduleStatus={rescheduleStatus}
+            onSuggestReschedule={creating ? undefined : suggestReschedule}
+            onApplyReschedule={applyReschedule}
           />
         </EventDialog>
       )}
@@ -737,6 +845,11 @@ function EventEditor({
   onSave,
   onDelete,
   onClose,
+  rescheduleSlots,
+  rescheduleBusy,
+  rescheduleStatus,
+  onSuggestReschedule,
+  onApplyReschedule,
 }: {
   mode: "create" | "edit";
   form: EventFormState;
@@ -746,6 +859,11 @@ function EventEditor({
   onSave: () => void;
   onDelete?: () => void;
   onClose: () => void;
+  rescheduleSlots: FreeSlot[];
+  rescheduleBusy: boolean;
+  rescheduleStatus: string | null;
+  onSuggestReschedule?: () => void;
+  onApplyReschedule: (slot: FreeSlot) => void;
 }) {
   const timeType = form.allDay ? "date" : "datetime-local";
   return (
@@ -853,6 +971,46 @@ function EventEditor({
           />
         </div>
       </div>
+      {mode === "edit" && onSuggestReschedule && (
+        <div className="mt-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="kicker">Reschedule</p>
+            <button
+              type="button"
+              onClick={onSuggestReschedule}
+              disabled={rescheduleBusy}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+            >
+              {rescheduleBusy ? "Finding…" : "Suggest new times"}
+            </button>
+          </div>
+          {rescheduleStatus && (
+            <p className="mt-2 text-[12px] text-[var(--color-text-soft)]">
+              {rescheduleStatus}
+            </p>
+          )}
+          {rescheduleSlots.length > 0 && (
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+              {rescheduleSlots.map((slot) => (
+                <button
+                  key={slot.start}
+                  type="button"
+                  onClick={() => onApplyReschedule(slot)}
+                  disabled={rescheduleBusy}
+                  className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2 text-left transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] disabled:opacity-60"
+                >
+                  <span className="block font-mono text-[10px] tracking-[0.08em] text-[var(--color-accent)] uppercase">
+                    Free slot
+                  </span>
+                  <span className="mt-1 block text-[12px] leading-5 text-[var(--color-text)]">
+                    {slot.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {status && (
         <p className="mt-3 text-[12px] text-[var(--color-text-soft)]">
           {status}

@@ -2,6 +2,7 @@ export const workspaceNav = [
   { href: "/inbox", label: "Workspace", short: "01" },
   { href: "/commitments", label: "Commitments", short: "02" },
   { href: "/calendar", label: "Calendar", short: "03" },
+  { href: "/aliases", label: "Aliases", short: "04" },
 ] as const;
 
 export const inboxThreads = [

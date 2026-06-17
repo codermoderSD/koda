@@ -11,7 +11,7 @@ import {
 } from "./calendar-actions";
 import { getCalendarEvents } from "./calendar";
 import { searchCommitments } from "./commitments";
-import { sendEmail } from "./gmail-actions";
+import { findFreeSlots } from "./free-slots";
 import { getInboxThreadPage } from "./inbox";
 
 type McpToolResult = {
@@ -252,15 +252,22 @@ export function buildKodaAiTools(
       execute: async ({ query, maxResults }) =>
         searchCommitments(query, maxResults),
     }),
-    send_email: tool({
-      description:
-        "Send a new Gmail message. Only call this when the user explicitly asks to send/write an email and provides or confirms recipient, subject, and body.",
+    find_free_slots: tool({
+      description: `Find available meeting slots on the user's Google Calendar. Use this when a requested meeting time conflicts, when rescheduling, or when the user asks for availability. User timezone: ${userTimeZone}.`,
       inputSchema: z.object({
-        to: z.array(z.string()).min(1),
-        subject: z.string().min(1),
-        body: z.string().min(1),
+        durationMinutes: z.number().int().min(15).max(480).default(30),
+        horizonDays: z.number().int().min(1).max(60).default(14),
+        timeZone: z.string().optional(),
+        maxResults: z.number().int().min(1).max(10).default(3),
       }),
-      execute: async (input) => sendEmail({ ...input, tenantId }),
+      execute: async ({ durationMinutes, horizonDays, timeZone, maxResults }) =>
+        findFreeSlots({
+          durationMinutes,
+          horizonDays,
+          timeZone: timeZone ?? userTimeZone,
+          tenantId,
+          maxResults,
+        }),
     }),
     create_calendar_event: tool({
       description: `Create a Google Calendar event. Use this only when the user asks to schedule/create/add an event. For user-local timed events, pass timeZone "${userTimeZone}" and local ISO datetime values without a trailing Z.`,

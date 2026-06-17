@@ -80,7 +80,9 @@ function EmptyLane({ kind }: { kind: "outbound" | "inbound" }) {
       </p>
       <p className="mt-1 max-w-[220px] text-[12px] leading-5 text-[var(--color-text-soft)]">
         Run “Extract from recent mail” and KODA surfaces{" "}
-        {kind === "outbound" ? "what you committed to" : "what others committed"}{" "}
+        {kind === "outbound"
+          ? "what you committed to"
+          : "what others committed"}{" "}
         here.
       </p>
     </div>
@@ -90,9 +92,15 @@ function EmptyLane({ kind }: { kind: "outbound" | "inbound" }) {
 function CommitmentCard({ item }: { item: KodaCommitment }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"done" | "remove" | null>(null);
-  const overdue = item.deadline
-    ? new Date(item.deadline).getTime() < Date.now()
-    : false;
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
+  const [reminded, setReminded] = useState(false);
+  const deadlineTime = item.deadline ? new Date(item.deadline).getTime() : null;
+  const overdue = deadlineTime !== null ? deadlineTime < Date.now() : false;
+  const dueSoon =
+    deadlineTime !== null &&
+    !overdue &&
+    deadlineTime <= Date.now() + 48 * 60 * 60 * 1000;
   const expired = item.status === "expired";
 
   async function mutate(method: "PATCH" | "DELETE", kind: "done" | "remove") {
@@ -106,6 +114,45 @@ function CommitmentCard({ item }: { item: KodaCommitment }) {
       router.refresh();
     } catch {
       setBusy(null);
+    }
+  }
+
+  async function draftReminder() {
+    if (!item.counterpartyEmail) return;
+    setReminderBusy(true);
+    setReminderStatus(null);
+    try {
+      const when = item.deadline
+        ? ` (due ${formatDeadline(item.deadline)})`
+        : "";
+      const subject = `Reminder: ${item.sourceSubject ?? item.actionSummary}`;
+      const body =
+        item.type === "INBOUND"
+          ? `Hi,\n\nJust following up on ${item.actionSummary}${when}. Could you share an update when you get a chance?\n\nThanks!`
+          : `Hi,\n\nA quick note that I'm following up on ${item.actionSummary}${when}. I'll keep you posted.\n\nThanks!`;
+      const response = await fetch("/api/koda/gmail/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: [item.counterpartyEmail],
+          subject,
+          body,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(payload.error ?? "Could not draft reminder.");
+      }
+      setReminderStatus("Reminder drafted in Gmail.");
+      setReminded(true);
+    } catch (error) {
+      setReminderStatus(
+        error instanceof Error ? error.message : "Could not draft reminder.",
+      );
+    } finally {
+      setReminderBusy(false);
     }
   }
 
@@ -135,13 +182,40 @@ function CommitmentCard({ item }: { item: KodaCommitment }) {
         </p>
       )}
       <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
+          {(overdue || dueSoon) && (
+            <span
+              className={`rounded-[var(--radius-sm)] px-1.5 py-0.5 ${
+                overdue
+                  ? "bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
+                  : "bg-[var(--color-warning-soft)] text-[var(--color-warning)]"
+              }`}
+            >
+              {overdue ? "Overdue" : "Due soon"}
+            </span>
+          )}
           <span className={expired ? "text-[var(--color-danger)]" : undefined}>
             {item.status}
           </span>
           <span>{confidenceLabel(item.confidence)} confidence</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {item.counterpartyEmail && !reminded && (
+            <button
+              type="button"
+              onClick={() => void draftReminder()}
+              disabled={reminderBusy}
+              title={`Draft a reminder to ${item.counterpartyEmail}`}
+              className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-60"
+            >
+              {reminderBusy ? "…" : "Remind"}
+            </button>
+          )}
+          {reminded && (
+            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-accent)] uppercase">
+              Reminded ✓
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void mutate("PATCH", "done")}
@@ -160,6 +234,11 @@ function CommitmentCard({ item }: { item: KodaCommitment }) {
           </button>
         </div>
       </div>
+      {reminderStatus && (
+        <p className="mt-2 text-[11px] text-[var(--color-text-soft)]">
+          {reminderStatus}
+        </p>
+      )}
     </article>
   );
 }

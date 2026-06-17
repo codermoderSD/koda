@@ -143,11 +143,45 @@ export async function deleteCommitment(id: string): Promise<void> {
   await db.delete(commitments).where(eq(commitments.id, id));
 }
 
+export async function createDraftCommitment(input: {
+  draftId: string;
+  to: string[];
+  subject: string;
+  body: string;
+}) {
+  const draftId = input.draftId.trim();
+  const subject = input.subject.trim() || "Untitled draft";
+  const body = input.body.trim();
+  if (!draftId) throw new Error("Draft id is required.");
+  if (!body) throw new Error("Draft body is required.");
+
+  const counterpartyEmail = input.to.find(Boolean) ?? null;
+  const actionSummary = `Send draft email: ${subject}`;
+
+  const threadId = `draft:${draftId}`;
+  await db.transaction(async (tx) => {
+    await tx.delete(commitments).where(eq(commitments.threadId, threadId));
+    await tx.insert(commitments).values({
+      emailId: null,
+      threadId,
+      type: "OUTBOUND",
+      actionSummary,
+      rawQuote: body.slice(0, 500),
+      counterpartyEmail,
+      deadline: null,
+      confidence: "0.90",
+      followUpDraft: body,
+    });
+  });
+}
+
 /**
  * Remove resolved/expired commitments older than `retentionDays`, and mark
  * still-active ones past that age as expired. Runs on each commitments load.
  */
-export async function purgeExpiredCommitments(retentionDays = 7): Promise<void> {
+export async function purgeExpiredCommitments(
+  retentionDays = 7,
+): Promise<void> {
   const days = Number.isFinite(retentionDays) ? Math.max(1, retentionDays) : 7;
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   try {
