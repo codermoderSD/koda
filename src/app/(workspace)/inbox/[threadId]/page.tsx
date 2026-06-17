@@ -11,7 +11,7 @@ type PageProps = {
 export const dynamic = "force-dynamic";
 
 function parseTab(value: string | undefined) {
-  return value === "search" || value === "all" || value === "focused"
+  return value === "search" || value === "all" || value === "focused" || value === "drafts"
     ? value
     : undefined;
 }

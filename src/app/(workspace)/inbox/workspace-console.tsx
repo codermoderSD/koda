@@ -17,6 +17,8 @@ import { DictationButton } from "../_components/dictation-button";
 import { ResizeHandle, usePaneWidths } from "../_components/resizable-panes";
 import { KodaLogo } from "../../_components/koda-logo";
 import type { CalEvent } from "../calendar/calendar-view";
+import type { GmailDraftSummary } from "~/server/koda/gmail-actions";
+import type { EmailAlias } from "~/server/koda/aliases";
 
 export type Thread = {
   id: string;
@@ -440,6 +442,326 @@ function threadMeetingDescription(thread: Thread) {
     .join("\n\n");
 }
 
+function AliasToField({
+  value,
+  disabled,
+  aliases,
+  onChange,
+  onAliasCreated,
+}: {
+  value: string;
+  disabled?: boolean;
+  aliases: EmailAlias[];
+  onChange: (val: string) => void;
+  onAliasCreated: (a: EmailAlias) => void;
+}) {
+  const [addFor, setAddFor] = useState<string | null>(null); // @word with no match
+  const [addEmail, setAddEmail] = useState("");
+  const [addLabel, setAddLabel] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+
+  // Detect last @word in the current input value
+  const atMatch = /(?:^|[\s,])(@[a-zA-Z0-9_-]*)$/.exec(value);
+  const currentAt = atMatch?.[1] ?? null; // e.g. "@cto"
+  const handle = currentAt?.slice(1).toLowerCase() ?? "";
+  const suggestions = handle
+    ? aliases.filter((a) => a.alias.startsWith(handle))
+    : [];
+  const exactMatch = aliases.find((a) => a.alias === handle);
+  const showDropdown = !!currentAt && handle.length > 0;
+
+  function pickSuggestion(alias: EmailAlias) {
+    // replace the trailing @word with the resolved email
+    const replaced = value.replace(/(@[a-zA-Z0-9_-]*)$/, alias.email);
+    onChange(replaced.endsWith(",") ? replaced + " " : replaced + ", ");
+    setAddFor(null);
+  }
+
+  async function saveAlias() {
+    if (!addFor || !addEmail.trim()) return;
+    setAddBusy(true);
+    try {
+      const res = await fetch("/api/koda/aliases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          alias: addFor.replace(/^@/, ""),
+          email: addEmail.trim(),
+          label: addLabel.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Could not save alias.");
+      const data = (await res.json()) as { alias: EmailAlias };
+      onAliasCreated(data.alias);
+      pickSuggestion(data.alias);
+      setAddFor(null);
+      setAddEmail("");
+      setAddLabel("");
+    } catch {
+      // silently ignore
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setAddFor(null);
+        }}
+        placeholder="Recipients (or @alias)"
+        className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:opacity-60"
+      />
+      {showDropdown && (
+        <div className="absolute top-full left-0 z-50 mt-0.5 w-full overflow-hidden rounded-[var(--radius)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)]">
+          {suggestions.length > 0 ? (
+            suggestions.slice(0, 5).map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickSuggestion(a);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-[var(--color-panel)]"
+              >
+                <span className="font-mono text-[11px] text-[var(--color-accent)]">
+                  @{a.alias}
+                </span>
+                <span className="truncate text-[12px] text-[var(--color-text-muted)]">
+                  {a.label ? `${a.label} · ${a.email}` : a.email}
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2">
+              <p className="text-[12px] text-[var(--color-text-soft)]">
+                No alias for{" "}
+                <span className="font-mono text-[var(--color-accent)]">
+                  {currentAt}
+                </span>
+              </p>
+              {addFor === currentAt ? (
+                <div className="mt-2 flex flex-col gap-1.5">
+                  <input
+                    autoFocus
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    placeholder="Email address"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                  />
+                  <input
+                    value={addLabel}
+                    onChange={(e) => setAddLabel(e.target.value)}
+                    placeholder="Display name (optional)"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void saveAlias()}
+                      disabled={addBusy || !addEmail.trim()}
+                      className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-0.5 text-[11px] font-medium text-white disabled:opacity-60"
+                    >
+                      {addBusy ? "Saving…" : "Save alias"}
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setAddFor(null)}
+                      className="px-2 py-0.5 text-[11px] text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setAddFor(currentAt);
+                    setAddEmail("");
+                    setAddLabel("");
+                  }}
+                  className="mt-1.5 text-[12px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+                >
+                  + Add alias for {currentAt}
+                </button>
+              )}
+            </div>
+          )}
+          {!exactMatch && suggestions.length > 0 && (
+            <div className="border-t border-[var(--color-line)] px-3 py-1.5">
+              {addFor === currentAt ? (
+                <div className="flex flex-col gap-1.5 py-1">
+                  <input
+                    autoFocus
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    placeholder="Email address"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                  />
+                  <input
+                    value={addLabel}
+                    onChange={(e) => setAddLabel(e.target.value)}
+                    placeholder="Display name (optional)"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void saveAlias()}
+                      disabled={addBusy || !addEmail.trim()}
+                      className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-0.5 text-[11px] font-medium text-white disabled:opacity-60"
+                    >
+                      {addBusy ? "Saving…" : "Save alias"}
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setAddFor(null)}
+                      className="px-2 py-0.5 text-[11px] text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setAddFor(currentAt);
+                    setAddEmail("");
+                    setAddLabel("");
+                  }}
+                  className="text-[11px] text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
+                >
+                  + Create new alias for {currentAt}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DraftRow({
+  draft,
+  onSent,
+  onDeleted,
+}: {
+  draft: GmailDraftSummary;
+  onSent: (id: string) => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [to, setTo] = useState(draft.to.join(", "));
+  const [subject, setSubject] = useState(draft.subject);
+  const [body, setBody] = useState(draft.body);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/koda/gmail/drafts/${encodeURIComponent(draft.id)}/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: to.split(",").map((s) => s.trim()).filter(Boolean),
+            subject,
+            body,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not send draft.");
+      }
+      onSent(draft.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not send draft.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteDraft() {
+    setBusy(true);
+    try {
+      await fetch(`/api/koda/gmail/drafts/${encodeURIComponent(draft.id)}`, {
+        method: "DELETE",
+      });
+      onDeleted(draft.id);
+    } catch {
+      // silently ignore
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border-b border-[var(--color-line)] px-3.5 py-3">
+      <div className="mb-2 flex items-center gap-1">
+        <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-accent)] uppercase">
+          Draft
+        </span>
+      </div>
+      <input
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        placeholder="To"
+        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+      />
+      <input
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        placeholder="Subject"
+        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+      />
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={4}
+        className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+      />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        {err && <p className="text-[11px] text-[var(--color-danger)]">{err}</p>}
+        <div className="ml-auto flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => void deleteDraft()}
+            disabled={busy}
+            className="rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] text-[var(--color-text-soft)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] disabled:opacity-60"
+          >
+            {busy ? "…" : "Delete"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void send()}
+            disabled={busy}
+            className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--color-accent-strong)] disabled:opacity-60"
+          >
+            {busy ? "Sending…" : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PaneHeader({
   title,
   count,
@@ -482,7 +804,7 @@ export function WorkspaceConsole({
   searchThreads: Thread[];
   searchNextPageToken: string | null;
   searchQuery: string;
-  initialTab?: "focused" | "all" | "search";
+  initialTab?: "focused" | "all" | "search" | "drafts";
   events: CalEvent[];
   nowISO: string;
   selectedThreadId?: string;
@@ -501,11 +823,14 @@ export function WorkspaceConsole({
     selectedThreadId,
   );
   const [mailQuery, setMailQuery] = useState(searchQuery);
-  const [mailFilter, setMailFilter] = useState<"focused" | "all" | "search">(
+  const [mailFilter, setMailFilter] = useState<"focused" | "all" | "search" | "drafts">(
     initialTab === "search" && searchQuery
       ? "search"
       : (initialTab ?? "focused"),
   );
+  const [localDrafts, setLocalDrafts] = useState<GmailDraftSummary[]>([]);
+  const [draftsBusy, setDraftsBusy] = useState(false);
+  const [aliases, setAliases] = useState<EmailAlias[]>([]);
   const [localSearchThreads, setLocalSearchThreads] = useState(searchThreads);
   const [searchPageToken, setSearchPageToken] = useState(searchNextPageToken);
   const [searchBusy, setSearchBusy] = useState(false);
@@ -536,6 +861,8 @@ export function WorkspaceConsole({
   const [eventStatus, setEventStatus] = useState<string | null>(null);
   const [eventBusy, setEventBusy] = useState(false);
   const [localEvents, setLocalEvents] = useState(events);
+  const [calRef, setCalRef] = useState<Date>(() => new Date(nowISO));
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const paneContainerRef = useRef<HTMLDivElement>(null);
   const { widths, adjust } = usePaneWidths();
 
@@ -615,6 +942,25 @@ export function WorkspaceConsole({
   useEffect(() => {
     setLocalEvents(events);
   }, [events]);
+
+  useEffect(() => {
+    fetch("/api/koda/aliases")
+      .then((r) => r.json())
+      .then((data: { aliases?: EmailAlias[] }) => setAliases(data.aliases ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (mailFilter !== "drafts") return;
+    setDraftsBusy(true);
+    fetch("/api/koda/gmail/drafts")
+      .then((r) => r.json())
+      .then((data: { drafts?: GmailDraftSummary[] }) => {
+        setLocalDrafts(data.drafts ?? []);
+      })
+      .catch(() => setLocalDrafts([]))
+      .finally(() => setDraftsBusy(false));
+  }, [mailFilter]);
 
   useEffect(() => {
     composeAttachmentsRef.current = composeAttachments;
@@ -699,7 +1045,7 @@ export function WorkspaceConsole({
   }, [active]);
 
   const weekStrip = useMemo(() => {
-    const start = startOfWeek(now);
+    const start = startOfWeek(calRef);
     return Array.from({ length: 7 }, (_, i) => {
       const day = addDays(start, i);
       const dots = localEvents.filter((e) => {
@@ -713,11 +1059,15 @@ export function WorkspaceConsole({
       return {
         label: day.toLocaleDateString("en-US", { weekday: "narrow" }),
         date: day.getDate(),
+        full: day,
         dots: Math.min(dots, 3),
         today: startOfDay(day).getTime() === startOfDay(now).getTime(),
+        selected: selectedDay
+          ? startOfDay(day).getTime() === startOfDay(selectedDay).getTime()
+          : false,
       };
     });
-  }, [localEvents, now]);
+  }, [localEvents, now, calRef, selectedDay]);
 
   const agenda = useMemo(
     () =>
@@ -730,8 +1080,46 @@ export function WorkspaceConsole({
     [localEvents, now],
   );
 
+  const dayAgenda = useMemo(() => {
+    if (!selectedDay) return null;
+    const key = startOfDay(selectedDay).getTime();
+    return localEvents
+      .filter((e) => {
+        if (!e.start) return false;
+        const d = new Date(e.start);
+        return !Number.isNaN(d.getTime()) && startOfDay(d).getTime() === key;
+      })
+      .sort(
+        (a, b) => new Date(a.start!).getTime() - new Date(b.start!).getTime(),
+      );
+  }, [localEvents, selectedDay]);
+
+  function shiftWeek(dir: -1 | 1) {
+    setCalRef((r) => addDays(r, dir * 7));
+  }
+
+  function resetCalendarToToday() {
+    setCalRef(new Date(nowISO));
+    setSelectedDay(null);
+  }
+
+  function toggleSelectedDay(day: Date) {
+    setSelectedDay((current) =>
+      current && startOfDay(current).getTime() === startOfDay(day).getTime()
+        ? null
+        : day,
+    );
+  }
+
+  function resolveAliasesInText(value: string) {
+    return value.replace(/@([a-zA-Z0-9_-]+)/g, (match, handle: string) => {
+      const found = aliases.find((a) => a.alias === handle.toLowerCase());
+      return found ? found.email : match;
+    });
+  }
+
   function parseRecipients(value: string) {
-    return value
+    return resolveAliasesInText(value)
       .split(",")
       .map((email) => email.trim())
       .filter(Boolean);
@@ -832,19 +1220,22 @@ export function WorkspaceConsole({
       : `/inbox?${params.toString()}`;
   }
 
-  function tabParam(tab: "focused" | "all" | "search") {
-    return tab === "all" ? "?tab=all" : "";
+  function tabParam(tab: "focused" | "all" | "search" | "drafts") {
+    if (tab === "all") return "?tab=all";
+    if (tab === "drafts") return "?tab=drafts";
+    return "";
   }
 
-  function listUrl(tab: "focused" | "all" | "search") {
+  function listUrl(tab: "focused" | "all" | "search" | "drafts") {
     if (tab === "search" && searchQuery) return searchUrl(searchQuery);
     return `/inbox${tabParam(tab)}`;
   }
 
   function normalThreadUrl(
     threadId: string,
-    tab: "focused" | "all" | "search" = mailFilter,
+    tab: "focused" | "all" | "search" | "drafts" = mailFilter,
   ) {
+    if (tab === "drafts") return listUrl("drafts");
     if (tab === "search" && searchQuery)
       return searchUrl(searchQuery, threadId);
     return `/inbox/${encodeURIComponent(threadId)}${tabParam(tab)}`;
@@ -1444,7 +1835,7 @@ export function WorkspaceConsole({
               </button>
             </form>
             <div className="flex items-center gap-1">
-              {(["focused", "all", "search"] as const).map((f) => (
+              {(["focused", "all", "drafts", "search"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -1454,9 +1845,7 @@ export function WorkspaceConsole({
                       return;
                     }
                     setMailFilter(f);
-                    router.push(
-                      selectedId ? normalThreadUrl(selectedId, f) : listUrl(f),
-                    );
+                    router.push(listUrl(f));
                   }}
                   disabled={f === "search" && !searchQuery}
                   className={`rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-medium capitalize transition ${
@@ -1472,7 +1861,9 @@ export function WorkspaceConsole({
                 >
                   {f === "search" && searchQuery
                     ? `Search (${localSearchThreads.length})`
-                    : f}
+                    : f === "drafts" && localDrafts.length > 0
+                      ? `Drafts (${localDrafts.length})`
+                      : f}
                 </button>
               ))}
               {searchQuery && (
@@ -1496,6 +1887,31 @@ export function WorkspaceConsole({
             </div>
           </div>
           <div className="divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+            {mailFilter === "drafts" ? (
+              draftsBusy ? (
+                <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                  Loading drafts…
+                </p>
+              ) : localDrafts.length === 0 ? (
+                <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                  No drafts in Gmail.
+                </p>
+              ) : (
+                localDrafts.map((d) => (
+                  <DraftRow
+                    key={d.id}
+                    draft={d}
+                    onSent={(id) =>
+                      setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
+                    }
+                    onDeleted={(id) =>
+                      setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
+                    }
+                  />
+                ))
+              )
+            ) : (
+              <>
             {visibleThreads.length === 0 && (
               <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
                 {mailQuery
@@ -1584,6 +2000,8 @@ export function WorkspaceConsole({
                 </button>
               </div>
             )}
+              </>
+            )}
           </div>
         </section>
       }
@@ -1654,10 +2072,47 @@ export function WorkspaceConsole({
                   <h2 className="line-clamp-2 text-[15px] leading-snug font-medium tracking-tight text-[var(--color-text)]">
                     {active.subject}
                   </h2>
-                  <p className="mt-1 truncate text-[12px] text-[var(--color-text-soft)]">
-                    {active.from}
-                    {active.to ? ` · to ${active.to}` : ""} · {active.time}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="min-w-0 truncate text-[12px] text-[var(--color-text-soft)]">
+                      {active.from}
+                      {active.to ? ` · to ${active.to}` : ""} · {active.time}
+                    </p>
+                    {(() => {
+                      const senderEmail = extractHeaderEmail(active.from);
+                      const alreadyAliased = aliases.some(
+                        (a) => a.email === senderEmail,
+                      );
+                      if (alreadyAliased || !senderEmail) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const handle = senderEmail.split("@")[0] ?? "";
+                            void fetch("/api/koda/aliases", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                alias: handle,
+                                email: senderEmail,
+                                label: senderDisplayName(active.from) ?? undefined,
+                              }),
+                            })
+                              .then((r) => r.json())
+                              .then(
+                                (data: { alias?: EmailAlias; error?: string }) => {
+                                  if (data.alias)
+                                    setAliases((prev) => [...prev, data.alias!]);
+                                },
+                              )
+                              .catch(() => {});
+                          }}
+                          className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-[var(--color-accent)] uppercase transition hover:underline"
+                        >
+                          + alias
+                        </button>
+                      );
+                    })()}
+                  </div>
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
@@ -1955,7 +2410,7 @@ export function WorkspaceConsole({
         >
           <PaneHeader
             title="Calendar"
-            count={now.toLocaleDateString("en-US", {
+            count={startOfWeek(calRef).toLocaleDateString("en-US", {
               month: "short",
               year: "numeric",
             })}
@@ -1980,10 +2435,16 @@ export function WorkspaceConsole({
             {/* Week strip */}
             <div className="grid grid-cols-7 gap-1 border-b border-[var(--color-line)] p-3">
               {weekStrip.map((d) => (
-                <div
-                  key={d.date}
-                  className={`flex flex-col items-center gap-1 rounded-[var(--radius)] py-2 ${
-                    d.today ? "bg-[var(--color-panel-strong)]" : ""
+                <button
+                  type="button"
+                  key={d.full.toISOString()}
+                  onClick={() => toggleSelectedDay(d.full)}
+                  className={`flex flex-col items-center gap-1 rounded-[var(--radius)] py-2 transition ${
+                    d.selected
+                      ? "bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]"
+                      : d.today
+                        ? "bg-[var(--color-panel-strong)] hover:bg-[var(--color-panel)]"
+                        : "hover:bg-[var(--color-panel)]"
                   }`}
                 >
                   <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
@@ -1991,7 +2452,7 @@ export function WorkspaceConsole({
                   </span>
                   <span
                     className={`text-[13px] font-medium ${
-                      d.today
+                      d.today || d.selected
                         ? "text-[var(--color-accent)]"
                         : "text-[var(--color-text)]"
                     }`}
@@ -2006,7 +2467,7 @@ export function WorkspaceConsole({
                       />
                     ))}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -2036,14 +2497,35 @@ export function WorkspaceConsole({
                 </div>
               )}
 
-              <p className="kicker mb-1 px-1">Up next</p>
+              <div className="mb-1 flex items-center justify-between px-1">
+                <p className="kicker">
+                  {selectedDay
+                    ? selectedDay.toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "Up next"}
+                </p>
+                {selectedDay && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDay(null)}
+                    className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase transition hover:text-[var(--color-text)]"
+                  >
+                    Upcoming
+                  </button>
+                )}
+              </div>
               <div className="space-y-0.5">
-                {agenda.length === 0 && (
+                {(selectedDay ? (dayAgenda ?? []) : agenda).length === 0 && (
                   <p className="px-2 py-2 text-[13px] text-[var(--color-text-soft)]">
-                    Nothing scheduled ahead.
+                    {selectedDay
+                      ? "No events on this day."
+                      : "Nothing scheduled ahead."}
                   </p>
                 )}
-                {agenda.map((item) => {
+                {(selectedDay ? (dayAgenda ?? []) : agenda).map((item) => {
                   const d = new Date(item.start!);
                   return (
                     <div
@@ -2066,11 +2548,38 @@ export function WorkspaceConsole({
               </div>
             </div>
           </div>
+
+          {/* Week navigation — bottom of calendar pane */}
+          <div className="flex items-center justify-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
+            <button
+              type="button"
+              onClick={() => shiftWeek(-1)}
+              aria-label="Previous week"
+              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={resetCalendarToToday}
+              className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1 text-[11px] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => shiftWeek(1)}
+              aria-label="Next week"
+              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            >
+              ›
+            </button>
+          </div>
         </section>
       }
 
       {composeOpen && (
-        <div className="pop fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
+        <div className="pop fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
           <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2">
             <p className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
               New message
@@ -2097,17 +2606,14 @@ export function WorkspaceConsole({
             </button>
           </div>
           <div className="divide-y divide-[var(--color-line)]">
-            <input
+            <AliasToField
               value={composeForm.to}
               disabled={composeBusy || composeDraftBusy}
-              onChange={(event) =>
-                setComposeForm((current) => ({
-                  ...current,
-                  to: event.target.value,
-                }))
+              aliases={aliases}
+              onChange={(val) =>
+                setComposeForm((current) => ({ ...current, to: val }))
               }
-              placeholder="Recipients"
-              className="w-full bg-transparent px-3 py-2 text-[13px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)] disabled:opacity-60"
+              onAliasCreated={(a) => setAliases((prev) => [...prev, a])}
             />
             <input
               value={composeForm.subject}

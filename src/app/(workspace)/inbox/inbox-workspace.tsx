@@ -118,7 +118,7 @@ export async function InboxWorkspace({
 }: {
   selectedThreadId?: string;
   searchQuery?: string;
-  initialTab?: "focused" | "all" | "search";
+  initialTab?: "focused" | "all" | "search" | "drafts";
 }) {
   const now = new Date();
   const session = await getSession();
