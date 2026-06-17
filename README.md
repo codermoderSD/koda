@@ -2,223 +2,136 @@
 
 **KODA is the execution layer for email and calendar.**
 
-KODA turns email commitments into tracked execution — replies, calendar blocks, and completed work. One AI workspace over live Gmail and Google Calendar.
+Gmail and Google Calendar behind one command — and one voice. See your mail and your schedule together, then ask KODA in plain language (or just speak) to draft replies, book and reschedule meetings, send reminders, and track what you're owed — in realtime.
 
-Live at [koda.shubhamdalvi.in](https://koda.shubhamdalvi.in) · see the interactive deck at `/pitch-deck` and [docs/pitch-deck.md](docs/pitch-deck.md).
-
-Most inbox tools optimize for speed of communication. That is not the real job. The real job is making sure commitments made in email actually turn into replies, calendar blocks, decisions, and delivered work.
-
-KODA is built around a sharper idea:
-
-**Your inbox is not a feed. It is an operational system of promises, requests, deadlines, and meetings.**
-
-That is the wedge.
+Live at [koda.shubhamdalvi.in](https://koda.shubhamdalvi.in) · interactive deck at `/pitch-deck` · [docs/pitch-deck.md](docs/pitch-deck.md) · roadmap & gaps in [docs/feature-gaps.md](docs/feature-gaps.md).
 
 ---
 
-## Product Thesis
+## The problem
 
-Gmail and Google Calendar are strong systems of record, but they are not strong systems of execution.
+Most knowledge work bounces between two tabs: Gmail and Google Calendar.
 
-People lose time because work is split across:
+A normal connect looks like this:
 
-- messages that contain asks
-- threads that imply deadlines
-- calendars that do not understand email context
-- follow-ups that depend on memory
-- assistants that can draft text but cannot reliably coordinate the whole workflow
+1. You email someone to set up a meeting.
+2. You switch to Calendar to find a time.
+3. Availability doesn't line up.
+4. You switch back to email to send a reschedule.
+5. Repeat.
 
-KODA fixes this by treating email and calendar as one workflow surface.
+And the whole time, the reminders you need to send and the commitments you made stay stuck in your head. The reply you forgot and the meeting you forgot to move are the expensive ones.
 
-When a message creates work, KODA should help the user:
-
-1. detect what matters
-2. understand who owes what
-3. schedule the next action
-4. send the reply or invite
-5. keep the commitment visible until it is resolved
+Gmail stores the conversation. Calendar stores the time. Neither lets you *act* across both.
 
 ---
 
-## The Product Vision
+## The product
 
-This is not just "AI for email."
+KODA puts mail and calendar behind **one command**.
 
-The stronger business is:
+You don't switch views or do scheduling math. You ask — by keyboard (`⌘K`) or by voice (`⌘⇧K`) — and KODA reads your live Gmail and Calendar, then does the work and tracks the follow-through.
 
-**KODA becomes the operating layer for relationship-driven work.**
+- **One command for everything** — search, draft, send, schedule, and reschedule across mail and calendar from a single command bar.
+- **Voice control** — hold `⌘⇧K` and talk. KODA types, books, and sends. No keyboard.
+- **Draft & reply without typing** — "remind the team about the deck", "reply that I'll confirm tomorrow" — KODA composes from thread context and sends.
+- **Schedule in place** — create events, move them, and find open slots without leaving the email.
+- **Commitments & reminders** — promises and deadlines are extracted from your threads so nothing slips.
 
-That includes:
-
-- founders
-- recruiters
-- operators
-- account managers
-- sales teams
-- executive assistants
-- partnerships teams
-- legal and finance teams managing external threads
-
-These users already live in Gmail and Calendar, but they lose money on missed follow-ups, slow coordination, and poor visibility into commitments.
-
-KODA has a credible wedge because it can own a narrow but painful problem first:
-
-**turning email commitments into tracked execution**
-
-If that works, the expansion path is clear:
-
-- team workflows
-- delegation
-- SLAs and response policies
-- customer and deal coordination
-- meeting preparation
-- cross-system workflow memory
-
-Acquisition-level logic exists because the product sits at the intersection of:
-
-- communication
-- scheduling
-- AI action orchestration
-- workflow memory
-
-Natural acquirers would be companies that already own adjacent surfaces:
-
-- Google
-- Microsoft
-- Salesforce
-- Atlassian
-- Notion
-- Zoom
-- Slack / Salesforce
+This is not "AI for email." It is execution: it acts in realtime, instead of just autocompleting.
 
 ---
 
-## The Wedge
+## Core experience
 
-The first unforgettable feature is not generic chat.
+### Command bar (the agent)
 
-It is:
+`⌘K` opens a natural-language command bar with modes for ask / search / draft / schedule. It runs on the Vercel AI SDK over Groq and calls KODA's tools to act on your real data — never a generic chatbot.
 
-**Commitment-aware inbox and calendar**
+### Voice
 
-KODA reads live Gmail and Calendar data through Corsair and surfaces:
-
-- what I promised
-- what others promised me
-- what needs a reply
-- what needs a calendar block
-- what is at risk of slipping
-
-That gives KODA a product identity stronger than "better Gmail."
-
----
-
-## Core Product Experience
+`⌘⇧K` starts hands-free input via the Web Speech API, with live transcription and a listening indicator. Speak the request; KODA executes it.
 
 ### Inbox
 
-A serious desktop-style workspace with:
-
-- real Gmail threads
-- urgency classification
-- structured commitment context
-- actions beside the thread, not buried in menus
-
-### Commitments
-
-The signature view:
-
-- `Promised by me`
-- `Waiting on others`
-
-Each item should show:
-
-- summary
-- source thread
-- owner
-- counterparty
-- deadline
-- confidence
-- suggested next action
+Live Gmail threads with search, reply, and draft — actions sit beside the thread, not buried in menus.
 
 ### Calendar
 
-A planning layer, not a decorative calendar clone:
+Real Google Calendar events: create, update, and delete with timezone awareness and attendee notifications, plus a free-slot finder that proposes open times.
 
-- real Google Calendar events
-- commitment deadlines overlaid on schedule
-- create prep blocks and invites from email context
-- see workload and obligations in one place
+### Commitments
 
-### Agent
-
-An execution agent, not a chatbot.
-
-It should do real work across Gmail and Calendar:
-
-- draft replies
-- create invites
-- schedule follow-ups
-- answer commitment questions from KODA's own data
+Promises and requests extracted from threads — `Promised by me` and `Waiting on others` — scored by deadline and confidence, so follow-ups don't depend on memory.
 
 ---
 
-## Why KODA Is Different
+## AI tools
 
-Most email tools optimize for one of these:
+The agent acts through a typed tool registry (`src/server/koda/ai-tools.ts`):
 
-- faster triage
-- prettier inbox
-- better search
-- AI drafting
-
-KODA should optimize for:
-
-**reliable follow-through**
-
-That is strategically better because it is:
-
-- easier to explain
-- easier to demo
-- easier to measure
-- more defensible than generic drafting
+- `search_email` — search Gmail threads (supports Gmail query syntax)
+- `search_calendar_events` — find events by title/date/window
+- `search_commitments` — query extracted commitments
+- `send_email` — send a new message
+- `create_calendar_event` — schedule a meeting (notifies attendees)
+- `update_calendar_event` — reschedule or edit an event
+- `delete_calendar_event` — remove an event
+- `corsair_list_operations` / `corsair_get_schema` — discover available Gmail/Calendar operations
 
 ---
 
-## Current Stack
+## Why KODA is different
+
+Most email tools optimize for faster triage, prettier inboxes, or better drafting. KODA optimizes for **action across both surfaces, in realtime**:
+
+- no tab-switching — mail and calendar answered in one place
+- no typing — speak or one-line it
+- no scheduling math — free slots and reschedules handled for you
+- nothing slips — commitments tracked from your threads
+
+---
+
+## Stack
 
 - Next.js, React, TypeScript, Tailwind CSS
 - PostgreSQL + Drizzle ORM
 - Better Auth + Google OAuth
 - Gmail and Google Calendar APIs via self-hosted Corsair
-- AI SDK + Groq
+- AI SDK + Groq (model-flexible)
+- Web Speech API for voice
 - Zod, TanStack Query, tRPC
 - Vercel and Vercel Analytics
 
-AI models can change over time. The product should stay model-flexible.
+---
 
-## Status
+## Architecture
 
-Shipped: Google sign-in, Gmail thread sync/search, Google Calendar search and actions, the AI command bar (agent), AI reply drafting, commitment extraction, AI credit tracking, and privacy/terms pages. Deployed and in use.
+Four layers:
+
+1. **Acquisition** — Gmail, Calendar, OAuth, and webhooks through Corsair.
+2. **Operational data** — normalized email, calendar, commitments, settings, and usage in Postgres.
+3. **Decision** — classification, commitment extraction, prioritization, and free-slot logic.
+4. **Execution** — AI tools that draft, send, schedule, and update state in realtime.
+
+The moat is the combination: a workflow-specific data model, accumulated action history, the commitment graph, and execution quality.
 
 ---
 
-## Architecture Direction
+## Status
 
-KODA should be built around four layers:
+Shipped and deployed:
 
-1. **Acquisition layer**
-   Gmail, Google Calendar, and webhook ingestion through Corsair.
-2. **Operational data layer**
-   Normalized local store for email, commitments, calendar events, and action history.
-3. **Decision layer**
-   Classification, commitment extraction, prioritization, and scheduling logic.
-4. **Execution layer**
-   UI actions and agent actions that draft, send, schedule, and update state.
+- Google sign-in (Better Auth + OAuth)
+- Google sign-in (Better Auth + OAuth)
+- Gmail sync, search, send, reply, draft inbox, and draft management tab
+- Google Calendar create / update / delete + free-slot finder + reschedule assistant
+- `⌘K` command-bar agent with 9 AI tools
+- `⌘⇧K` voice control
+- Commitment extraction and tracking with one-click reminder drafting
+- **Email aliases** — `@handle` shortcuts in compose that resolve to real addresses; add from thread, manage at `/aliases`
+- AI quota tracking (daily limit)
+- Realtime ingestion via Corsair webhooks
+- Privacy and terms pages
 
-The moat is not the UI alone. The moat is the combination of:
-
-- workflow-specific data model
-- accumulated action history
-- structured commitment graph
-- execution quality
+Known gaps and the build order are tracked in [docs/feature-gaps.md](docs/feature-gaps.md).

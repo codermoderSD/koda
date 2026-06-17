@@ -10,10 +10,10 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "KODA | The execution layer for email and calendar",
   description:
-    "KODA turns email commitments into tracked execution. Built around commitments, follow-through, and AI action orchestration on Gmail and Calendar.",
+    "Gmail and Google Calendar behind one command. Ask in plain language or by voice — KODA drafts replies, books and reschedules meetings, and tracks commitments in realtime.",
 };
 
-type IconName = "inbox" | "lanes" | "calendar" | "agent";
+type IconName = "agent" | "voice" | "inbox" | "calendar" | "alias";
 
 function Icon({ name }: { name: IconName }) {
   const common = {
@@ -32,11 +32,11 @@ function Icon({ name }: { name: IconName }) {
         <path d="M3 13h5l1.5 2.5h5L16 13h5v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       </svg>
     );
-  if (name === "lanes")
+  if (name === "voice")
     return (
       <svg {...common}>
-        <rect x="3" y="4" width="7" height="16" rx="1.5" />
-        <rect x="14" y="4" width="7" height="10" rx="1.5" />
+        <rect x="9" y="3" width="6" height="11" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
       </svg>
     );
   if (name === "calendar")
@@ -44,6 +44,13 @@ function Icon({ name }: { name: IconName }) {
       <svg {...common}>
         <rect x="3.5" y="5" width="17" height="15" rx="2" />
         <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3M8 14h2M14 14h2" />
+      </svg>
+    );
+  if (name === "alias")
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
       </svg>
     );
   return (
@@ -56,39 +63,44 @@ function Icon({ name }: { name: IconName }) {
 
 const capabilities: Array<{ icon: IconName; title: string; body: string }> = [
   {
-    icon: "inbox",
-    title: "Commitment-aware inbox",
-    body: "What you promised, what others owe you, and what is at risk of slipping — surfaced from live Gmail.",
+    icon: "agent",
+    title: "One command for everything",
+    body: "Search, draft, send, schedule, and reschedule across Gmail and Calendar — from a single ⌘K command bar.",
   },
   {
-    icon: "lanes",
-    title: "Two-lane commitments",
-    body: "Promised by me and Waiting on others. Owner, counterparty, deadline, confidence, next action.",
+    icon: "voice",
+    title: "Voice control",
+    body: "Hold ⌘⇧K and talk. KODA types, books, and sends — hands-free, no keyboard.",
+  },
+  {
+    icon: "inbox",
+    title: "Draft & reply without typing",
+    body: "Ask KODA to write the reminder or reply. It composes from thread context and sends in realtime.",
   },
   {
     icon: "calendar",
-    title: "Planning calendar",
-    body: "Real Google Calendar events with commitment deadlines overlaid. Create prep blocks from email context.",
+    title: "Schedule in place",
+    body: "Create events, move them, and find open slots without ever leaving the email.",
   },
   {
-    icon: "agent",
-    title: "Execution agent",
-    body: "Drafts replies, creates invites, schedules follow-ups, and answers from KODA's own commitment data.",
+    icon: "alias",
+    title: "@alias shortcuts",
+    body: "Name your frequent contacts. Type @cto in compose and KODA resolves it to the real address — no copy-pasting.",
   },
 ];
 
 const steps = [
   {
     title: "Connect Google",
-    body: "Authorize Gmail and Calendar once. Corsair syncs your tenant into KODA's own operational tables.",
+    body: "Authorize Gmail and Calendar once. KODA syncs your mail and schedule into one workspace.",
   },
   {
-    title: "KODA extracts commitments",
-    body: "Every thread is read for promises, requests, and deadlines — owner, counterparty, and confidence scored.",
+    title: "Ask in a line — or speak",
+    body: "Type or say what you want: find a thread, draft a reply, book a meeting, or move one.",
   },
   {
-    title: "Execute and follow through",
-    body: "Draft replies, block prep time, schedule invites, and close the loop without leaving the workspace.",
+    title: "KODA acts in realtime",
+    body: "It reads mail and calendar, drafts, schedules, and sends — then tracks what you're owed.",
   },
 ];
 
@@ -120,9 +132,9 @@ export default async function Home() {
             </h1>
 
             <p className="rise mt-5 max-w-xl text-[15px] leading-7 text-[var(--color-text-muted)] sm:text-base">
-              Your inbox is not a feed. It is an operational system of promises,
-              requests, and deadlines. KODA turns email commitments into tracked
-              execution — replies, calendar blocks, and completed work.
+              Your mail and your schedule, behind one command. Ask in plain
+              language — or just speak — and KODA drafts replies, books meetings,
+              and reschedules in realtime. No more bouncing between two tabs.
             </p>
 
             <div className="rise mt-8 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
@@ -409,7 +421,7 @@ export default async function Home() {
           <div className="mx-auto max-w-2xl text-center">
             <p className="kicker text-[var(--color-accent)]">Capabilities</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">
-              Built for follow-through, not for feed-scrolling.
+              One command across mail and calendar.
             </h2>
           </div>
 
@@ -441,7 +453,7 @@ export default async function Home() {
           <div className="mx-auto max-w-2xl text-center">
             <p className="kicker text-[var(--color-accent)]">How it works</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">
-              From connected inbox to closed loop.
+              Ask once. KODA does the rest.
             </h2>
           </div>
 
@@ -470,12 +482,12 @@ export default async function Home() {
           <div className="relative isolate overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-6 py-12 text-center sm:px-12 sm:py-16">
             <div className="aurora" aria-hidden />
             <h2 className="display text-3xl sm:text-4xl">
-              Stop re-reading your inbox.
+              Stop living in two tabs.
             </h2>
             <p className="mx-auto mt-4 max-w-md text-[14px] leading-7 text-[var(--color-text-muted)]">
               {session
-                ? "Jump back into KODA to schedule meetings from threads, draft replies, and keep calendar work moving."
-                : "Connect Google and let KODA track every promise, deadline, and follow-up across mail and calendar."}
+                ? "Jump back into KODA — draft a reply, book or move a meeting, or just ask what you're waiting on."
+                : "Connect Google and run your mail and calendar from one command — by keyboard or by voice."}
             </p>
             <div className="mt-7 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
               <Link
