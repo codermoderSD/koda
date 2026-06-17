@@ -552,13 +552,13 @@ function AliasToField({
                     value={addEmail}
                     onChange={(e) => setAddEmail(e.target.value)}
                     placeholder="Email address"
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
                   />
                   <input
                     value={addLabel}
                     onChange={(e) => setAddLabel(e.target.value)}
                     placeholder="Display name (optional)"
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
                   />
                   <div className="flex gap-1.5">
                     <button
@@ -605,13 +605,13 @@ function AliasToField({
                     value={addEmail}
                     onChange={(e) => setAddEmail(e.target.value)}
                     placeholder="Email address"
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
                   />
                   <input
                     value={addLabel}
                     onChange={(e) => setAddLabel(e.target.value)}
                     placeholder="Display name (optional)"
-                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                    className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
                   />
                   <div className="flex gap-1.5">
                     <button
@@ -680,14 +680,19 @@ function DraftRow({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: to.split(",").map((s) => s.trim()).filter(Boolean),
+            to: to
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
             subject,
             body,
           }),
         },
       );
       if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        const payload = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(payload.error ?? "Could not send draft.");
       }
       onSent(draft.id);
@@ -723,19 +728,19 @@ function DraftRow({
         value={to}
         onChange={(e) => setTo(e.target.value)}
         placeholder="To"
-        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
       />
       <input
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject"
-        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+        className="mb-1.5 w-full rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
       />
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={4}
-        className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+        className="w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
       />
       <div className="mt-2 flex items-center justify-between gap-2">
         {err && <p className="text-[11px] text-[var(--color-danger)]">{err}</p>}
@@ -823,7 +828,9 @@ export function WorkspaceConsole({
     selectedThreadId,
   );
   const [mailQuery, setMailQuery] = useState(searchQuery);
-  const [mailFilter, setMailFilter] = useState<"focused" | "all" | "search" | "drafts">(
+  const [mailFilter, setMailFilter] = useState<
+    "focused" | "all" | "search" | "drafts"
+  >(
     initialTab === "search" && searchQuery
       ? "search"
       : (initialTab ?? "focused"),
@@ -946,8 +953,13 @@ export function WorkspaceConsole({
   useEffect(() => {
     fetch("/api/koda/aliases")
       .then((r) => r.json())
-      .then((data: { aliases?: EmailAlias[] }) => setAliases(data.aliases ?? []))
-      .catch(() => {});
+      .then((data: { aliases?: EmailAlias[] }) =>
+        setAliases(data.aliases ?? []),
+      )
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      .catch((e) => {
+        console.error("Could not fetch aliases", e);
+      });
   }, []);
 
   useEffect(() => {
@@ -1912,94 +1924,94 @@ export function WorkspaceConsole({
               )
             ) : (
               <>
-            {visibleThreads.length === 0 && (
-              <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
-                {mailQuery
-                  ? "No mail matches your search."
-                  : mailFilter === "search"
-                    ? "No KODA search results."
-                    : "No focused mail right now."}
-              </p>
-            )}
-            {visibleThreads.map((thread) => {
-              const isActive = thread.id === active?.id;
-              const isHighlighted = highlightedThreadIds.has(thread.id);
-              return (
-                <button
-                  key={thread.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(thread.id);
-                    setReplyStatus(null);
-                    setHighlightedThreadIds((current) => {
-                      if (!current.has(thread.id)) return current;
-                      const next = new Set(current);
-                      next.delete(thread.id);
-                      return next;
-                    });
-                    router.push(
-                      mailFilter === "search" && searchQuery
-                        ? searchUrl(searchQuery, thread.id)
-                        : normalThreadUrl(thread.id, mailFilter),
-                    );
-                  }}
-                  className={`flex w-full gap-3 border-l-2 px-3.5 py-3 text-left transition ${
-                    isActive
-                      ? "border-l-transparent bg-[var(--color-panel-strong)]"
-                      : isHighlighted
-                        ? "border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:bg-[var(--color-panel)]"
-                        : "border-l-transparent hover:bg-[var(--color-panel)]"
-                  }`}
-                >
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
-                    {senderInitials(thread.from)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                        {senderDisplayName(thread.from) || thread.from}
-                      </p>
-                      <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                        {thread.time}
+                {visibleThreads.length === 0 && (
+                  <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                    {mailQuery
+                      ? "No mail matches your search."
+                      : mailFilter === "search"
+                        ? "No KODA search results."
+                        : "No focused mail right now."}
+                  </p>
+                )}
+                {visibleThreads.map((thread) => {
+                  const isActive = thread.id === active?.id;
+                  const isHighlighted = highlightedThreadIds.has(thread.id);
+                  return (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(thread.id);
+                        setReplyStatus(null);
+                        setHighlightedThreadIds((current) => {
+                          if (!current.has(thread.id)) return current;
+                          const next = new Set(current);
+                          next.delete(thread.id);
+                          return next;
+                        });
+                        router.push(
+                          mailFilter === "search" && searchQuery
+                            ? searchUrl(searchQuery, thread.id)
+                            : normalThreadUrl(thread.id, mailFilter),
+                        );
+                      }}
+                      className={`flex w-full gap-3 border-l-2 px-3.5 py-3 text-left transition ${
+                        isActive
+                          ? "border-l-transparent bg-[var(--color-panel-strong)]"
+                          : isHighlighted
+                            ? "border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:bg-[var(--color-panel)]"
+                            : "border-l-transparent hover:bg-[var(--color-panel)]"
+                      }`}
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
+                        {senderInitials(thread.from)}
                       </span>
-                    </div>
-                    <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
-                      {thread.subject}
-                    </p>
-                    <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
-                      {thread.preview}
-                    </p>
-                    <div className="mt-2">
-                      <Tag label={thread.priority} />
-                    </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                            {senderDisplayName(thread.from) || thread.from}
+                          </p>
+                          <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                            {thread.time}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
+                          {thread.subject}
+                        </p>
+                        <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
+                          {thread.preview}
+                        </p>
+                        <div className="mt-2">
+                          <Tag label={thread.priority} />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {pageToken && !mailQuery && mailFilter !== "search" && (
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      onClick={loadMoreMail}
+                      disabled={pageBusy}
+                      className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                    >
+                      {pageBusy ? "Loading..." : "Load 20 more"}
+                    </button>
                   </div>
-                </button>
-              );
-            })}
-            {pageToken && !mailQuery && mailFilter !== "search" && (
-              <div className="p-3">
-                <button
-                  type="button"
-                  onClick={loadMoreMail}
-                  disabled={pageBusy}
-                  className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
-                >
-                  {pageBusy ? "Loading..." : "Load 20 more"}
-                </button>
-              </div>
-            )}
-            {searchPageToken && mailFilter === "search" && (
-              <div className="p-3">
-                <button
-                  type="button"
-                  onClick={loadMoreSearchMail}
-                  disabled={searchBusy}
-                  className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
-                >
-                  {searchBusy ? "Loading..." : "Load 20 more results"}
-                </button>
-              </div>
-            )}
+                )}
+                {searchPageToken && mailFilter === "search" && (
+                  <div className="p-3">
+                    <button
+                      type="button"
+                      onClick={loadMoreSearchMail}
+                      disabled={searchBusy}
+                      className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                    >
+                      {searchBusy ? "Loading..." : "Load 20 more results"}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -2018,27 +2030,27 @@ export function WorkspaceConsole({
       {active && (
         <section className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:flex-1">
           <PaneHeader title="Thread">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedId(undefined);
-                  router.push(listUrl(mailFilter));
-                }}
-                aria-label="Close thread"
-                className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(undefined);
+                router.push(listUrl(mailFilter));
+              }}
+              aria-label="Close thread"
+              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
               >
-                <svg
-                  viewBox="0 0 16 16"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              </button>
-            </PaneHeader>
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          </PaneHeader>
 
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {!active ? (
@@ -2094,16 +2106,24 @@ export function WorkspaceConsole({
                               body: JSON.stringify({
                                 alias: handle,
                                 email: senderEmail,
-                                label: senderDisplayName(active.from) ?? undefined,
+                                label:
+                                  senderDisplayName(active.from) ?? undefined,
                               }),
                             })
                               .then((r) => r.json())
                               .then(
-                                (data: { alias?: EmailAlias; error?: string }) => {
+                                (data: {
+                                  alias?: EmailAlias;
+                                  error?: string;
+                                }) => {
                                   if (data.alias)
-                                    setAliases((prev) => [...prev, data.alias!]);
+                                    setAliases((prev) => [
+                                      ...prev,
+                                      data.alias!,
+                                    ]);
                                 },
                               )
+                              // eslint-disable-next-line @typescript-eslint/no-empty-function
                               .catch(() => {});
                           }}
                           className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-[var(--color-accent)] uppercase transition hover:underline"
@@ -2392,7 +2412,7 @@ export function WorkspaceConsole({
             )}
           </div>
         </section>
-        )}
+      )}
 
       {/* Thread|Calendar (3-pane) or Mail|Calendar (2-pane) resize handle */}
       <ResizeHandle

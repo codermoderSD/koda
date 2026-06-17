@@ -254,7 +254,10 @@ export function CommandBar() {
       .then((data: { aliases?: EmailAlias[] }) =>
         setAliases(data.aliases ?? []),
       )
-      .catch(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      .catch((e) => {
+        console.log("Failed to load aliases", e);
+      });
   }, [open]);
 
   // Keep the latest turn in view as the conversation grows.
@@ -264,7 +267,7 @@ export function CommandBar() {
 
   function onChange(value: string) {
     setQuery(value);
-    const match = value.match(/(?:^|[\s,])(@[a-zA-Z0-9_-]*)$/);
+    const match = /(?:^|[\s,])(@[a-zA-Z0-9_-]*)$/.exec(value);
     if (match && aliases.length > 0 && match[1] !== undefined) {
       const handle = match[1];
       const word = handle.slice(1).toLowerCase();
