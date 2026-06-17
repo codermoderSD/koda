@@ -119,6 +119,15 @@ type KodaResponseComponent =
   | { type: "confirm_action"; label: string; action: ConfirmableAction }
   | { type: "input"; label: string; name: string; placeholder?: string };
 
+function resolveAliasHandles(text: string, aliases: EmailAlias[]): string {
+  let result = text;
+  for (const alias of aliases) {
+    const escaped = alias.alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    result = result.replace(new RegExp(`@${escaped}\\b`, "gi"), alias.email);
+  }
+  return result;
+}
+
 export function CommandBar() {
   const pathname = usePathname();
   const [query, setQuery] = useState("");
@@ -242,7 +251,9 @@ export function CommandBar() {
     if (!open) return;
     fetch("/api/koda/aliases")
       .then((r) => r.json())
-      .then((data: { aliases?: EmailAlias[] }) => setAliases(data.aliases ?? []))
+      .then((data: { aliases?: EmailAlias[] }) =>
+        setAliases(data.aliases ?? []),
+      )
       .catch(() => {});
   }, [open]);
 
@@ -300,8 +311,12 @@ export function CommandBar() {
   }
 
   async function submit(messageOverride?: string) {
-    const message = (messageOverride ?? query).trim();
-    if (!message) return;
+    const rawMessage = (messageOverride ?? query).trim();
+    if (!rawMessage) return;
+
+    // Resolve @alias handles → real email addresses before sending to AI.
+    // The display text keeps @alias so the user sees what they typed.
+    const apiMessage = resolveAliasHandles(rawMessage, aliases);
 
     // Prior turns become context for this request. Built before appending the
     // new user turn so the current message isn't duplicated server-side.
@@ -317,13 +332,18 @@ export function CommandBar() {
       .filter((turn) => turn.content.trim().length > 0);
 
     setBusy(true);
-    appendUser(message);
+    appendUser(rawMessage);
     try {
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const response = await fetch("/api/koda/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, timeZone, activeThread, history }),
+        body: JSON.stringify({
+          message: apiMessage,
+          timeZone,
+          activeThread,
+          history,
+        }),
       });
       const payload = (await response.json().catch(() => ({}))) as ChatResponse;
       if (!response.ok) {
@@ -589,7 +609,7 @@ export function CommandBar() {
         {/* Docked input */}
         <div className="relative">
           {aliasSuggestions.length > 0 && (
-            <div className="absolute bottom-full left-0 right-0 mb-1.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_97%,transparent)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
+            <div className="absolute right-0 bottom-full left-0 mb-1.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_97%,transparent)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
               <p className="px-3 pt-2.5 pb-1 font-mono text-[9.5px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
                 Aliases
               </p>
@@ -618,115 +638,115 @@ export function CommandBar() {
               ))}
             </div>
           )}
-        <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[0_0_0_2px_var(--color-accent-soft),var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
-          <span
-            className={`flex h-5 w-5 shrink-0 ${busy ? "animate-pulse" : ""}`}
-          >
-            <KodaLogo markClassName="h-5 w-5" />
-          </span>
-          <div className="relative min-w-0 flex-1 self-center">
-            {/(@[a-zA-Z0-9_-]+)/.test(query) && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 max-h-20 overflow-hidden whitespace-pre-wrap break-words text-[14px] leading-5"
-                style={{ color: "var(--color-text)" }}
-              >
-                {query.split(/(@[a-zA-Z0-9_-]+)/g).map((part, i) =>
-                  /^@[a-zA-Z0-9_-]+$/.test(part) ? (
-                    <span
-                      key={i}
-                      style={{
-                        color: aliases.some(
-                          (a) =>
-                            a.alias.toLowerCase() ===
-                            part.slice(1).toLowerCase(),
-                        )
-                          ? "var(--color-accent)"
-                          : "var(--color-text)",
-                      }}
-                    >
-                      {part}
+          <div className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_94%,transparent)] px-3 py-2 shadow-[0_0_0_2px_var(--color-accent-soft),var(--shadow-soft)] backdrop-blur-xl transition-all duration-200 focus-within:shadow-[0_0_0_3px_var(--color-accent-soft),var(--shadow-soft)]">
+            <span
+              className={`flex h-5 w-5 shrink-0 ${busy ? "animate-pulse" : ""}`}
+            >
+              <KodaLogo markClassName="h-5 w-5" />
+            </span>
+            <div className="relative flex min-w-0 flex-1 items-center self-center">
+              {/(@[a-zA-Z0-9_-]+)/.test(query) && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 max-h-20 overflow-hidden text-[14px] leading-5 break-words whitespace-pre-wrap"
+                  style={{ color: "var(--color-text)" }}
+                >
+                  {query.split(/(@[a-zA-Z0-9_-]+)/g).map((part, i) =>
+                    /^@[a-zA-Z0-9_-]+$/.test(part) ? (
+                      <span
+                        key={i}
+                        style={{
+                          color: aliases.some(
+                            (a) =>
+                              a.alias.toLowerCase() ===
+                              part.slice(1).toLowerCase(),
+                          )
+                            ? "var(--color-accent)"
+                            : "var(--color-text)",
+                        }}
+                      >
+                        {part}
+                      </span>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    ),
+                  )}
+                </div>
+              )}
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={query}
+                disabled={inlineInputActive}
+                onFocus={() => setFocused(true)}
+                onBlur={(e) => {
+                  setFocused(false);
+                  // Leaving the whole panel (not jumping to a button inside it)
+                  // ends the session and resets conversation context.
+                  if (!panelRef.current?.contains(e.relatedTarget)) {
+                    clearConversation();
+                  }
+                }}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Ask KODA to search, write replies, or manage calendar events…"
+                className={`max-h-20 min-h-5 w-full resize-none overflow-y-auto bg-transparent text-[14px] leading-5 outline-none placeholder:text-[var(--color-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 ${/(@[a-zA-Z0-9_-]+)/.test(query) && aliases.length > 0 ? "[color:transparent] [caret-color:var(--color-text)]" : "text-[var(--color-text)]"}`}
+              />
+            </div>
+            <DictationButton
+              value={query}
+              onChange={onChange}
+              onSubmit={() => void submit()}
+              disabled={inlineInputActive || busy}
+            />
+            {query.trim() && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    inputRef.current?.focus();
+                  }}
+                  aria-label="Clear input"
+                  className="tap flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  >
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submit()}
+                  disabled={busy || inlineInputActive}
+                  className="tap shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
+                >
+                  {busy ? (
+                    <span className="inline-flex items-center gap-1">
+                      Running
+                      <span className="inline-flex gap-0.5">
+                        {[0, 1, 2].map((i) => (
+                          <span
+                            key={i}
+                            className="h-1 w-1 animate-bounce rounded-full bg-current"
+                            style={{ animationDelay: `${i * 120}ms` }}
+                          />
+                        ))}
+                      </span>
                     </span>
                   ) : (
-                    <span key={i}>{part}</span>
-                  ),
-                )}
-              </div>
+                    "↵ Run"
+                  )}
+                </button>
+              </>
             )}
-          <textarea
-            ref={inputRef}
-            rows={1}
-            value={query}
-            disabled={inlineInputActive}
-            onFocus={() => setFocused(true)}
-            onBlur={(e) => {
-              setFocused(false);
-              // Leaving the whole panel (not jumping to a button inside it)
-              // ends the session and resets conversation context.
-              if (!panelRef.current?.contains(e.relatedTarget)) {
-                clearConversation();
-              }
-            }}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Ask KODA to search, write replies, or manage calendar events…"
-            className={`max-h-20 min-h-5 w-full resize-none overflow-y-auto bg-transparent text-[14px] leading-5 outline-none placeholder:text-[var(--color-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 ${/(@[a-zA-Z0-9_-]+)/.test(query) && aliases.length > 0 ? "[color:transparent] [caret-color:var(--color-text)]" : "text-[var(--color-text)]"}`}
-          />
           </div>
-          <DictationButton
-            value={query}
-            onChange={onChange}
-            onSubmit={() => void submit()}
-            disabled={inlineInputActive || busy}
-          />
-          {query.trim() && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  inputRef.current?.focus();
-                }}
-                aria-label="Clear input"
-                className="tap flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
-              >
-                <svg
-                  viewBox="0 0 16 16"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={busy || inlineInputActive}
-                className="tap shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 font-mono text-[11px] text-white hover:bg-[var(--color-accent-strong)] disabled:opacity-70"
-              >
-                {busy ? (
-                  <span className="inline-flex items-center gap-1">
-                    Running
-                    <span className="inline-flex gap-0.5">
-                      {[0, 1, 2].map((i) => (
-                        <span
-                          key={i}
-                          className="h-1 w-1 animate-bounce rounded-full bg-current"
-                          style={{ animationDelay: `${i * 120}ms` }}
-                        />
-                      ))}
-                    </span>
-                  </span>
-                ) : (
-                  "↵ Run"
-                )}
-              </button>
-            </>
-          )}
-        </div>
         </div>
       </div>
     </div>
