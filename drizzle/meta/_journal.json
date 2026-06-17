@@ -36,6 +36,13 @@
       "when": 1781612240053,
       "tag": "0004_shocking_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781715916900,
+      "tag": "0005_classy_sunfire",
+      "breakpoints": true
     }
   ]
 }
