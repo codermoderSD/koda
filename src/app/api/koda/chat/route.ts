@@ -10,6 +10,11 @@ import {
   getCalendarEvents,
   type KodaCalendarEvent,
 } from "~/server/koda/calendar";
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+} from "~/server/koda/calendar-actions";
+import { saveEmailDraft } from "~/server/koda/gmail-actions";
 import { getInboxThreadPage } from "~/server/koda/inbox";
 import { consumeAiQuota, getAiQuota } from "~/server/koda/usage";
 
@@ -45,6 +50,11 @@ const chatSchema = z.object({
     })
     .nullable()
     .optional(),
+});
+
+const generatedEmailDraftSchema = z.object({
+  subject: z.string().min(1),
+  body: z.string().min(1),
 });
 
 type ChatStatus = "success" | "needs_input" | "requires_confirmation" | "error";
@@ -92,6 +102,13 @@ type KodaResponseComponent =
       threadId: string;
       subject: string;
       to: string;
+      body: string;
+    }
+  | {
+      type: "draft_email";
+      draftId: string;
+      to: string[];
+      subject: string;
       body: string;
     }
   | {
@@ -547,6 +564,217 @@ function extractEmailAddress(message: string) {
   return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(message)?.[0];
 }
 
+function extractEmailAddresses(message: string) {
+  return [
+    ...new Set(message.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? []),
+  ];
+}
+
+function parseJsonObject(text: string) {
+  const withoutFence = text
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const start = withoutFence.indexOf("{");
+  const end = withoutFence.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("The model did not return JSON.");
+  }
+  return JSON.parse(withoutFence.slice(start, end + 1)) as unknown;
+}
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function addLocalDays(localDate: string, days: number) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const date = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day) + days),
+  );
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(
+    date.getUTCDate(),
+  )}`;
+}
+
+function localWeekdayIndex(localDate: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  ).getUTCDay();
+}
+
+function targetLocalDateFromMessage(message: string, timeZone: string) {
+  const explicit = /\b(20\d{2}-\d{2}-\d{2})\b/.exec(message)?.[1];
+  if (explicit) return explicit;
+
+  const today = localDateString(timeZone);
+  if (/\btoday(?:'s)?\b/i.test(message)) return today;
+  if (/\btomorrow(?:'s)?\b/i.test(message)) return addLocalDays(today, 1);
+
+  const weekdayMatch =
+    /\b(?:(next|this)\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.exec(
+      message,
+    );
+  if (!weekdayMatch) return null;
+
+  const modifier = weekdayMatch[1]?.toLowerCase();
+  const weekday = WEEKDAY_INDEX[weekdayMatch[2]!.toLowerCase()];
+  const currentWeekday = localWeekdayIndex(today);
+  if (weekday === undefined || currentWeekday === null) return null;
+
+  let daysAhead = (weekday - currentWeekday + 7) % 7;
+  if (modifier === "next" || daysAhead === 0) daysAhead += 7;
+  return addLocalDays(today, daysAhead);
+}
+
+function clockTimeFromMessage(message: string) {
+  const match =
+    /\b(?:at|to|from)?\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm)\b/i.exec(
+      message,
+    ) ?? /\b(?:at|to|from)\s+(\d{1,2})(?::(\d{2}))\b/i.exec(message);
+
+  if (!match) return null;
+  const period = match[3]?.toLowerCase().replace(/\./g, "");
+  let hour = Number(match[1]);
+  const minute = Number(match[2] ?? "0");
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  if (period === "pm" && hour < 12) hour += 12;
+  if (period === "am" && hour === 12) hour = 0;
+  return { hour, minute };
+}
+
+function durationMinutesFromMessage(message: string) {
+  if (/\bhalf\s+(?:an?\s+)?hour\b/i.test(message)) return 30;
+  const match = /\b(\d+(?:\.\d+)?)\s*(hours?|hrs?|minutes?|mins?)\b/i.exec(
+    message,
+  );
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return /h/i.test(match[2]!) ? Math.round(value * 60) : Math.round(value);
+}
+
+function localDateTimeInput(
+  localDate: string,
+  time: { hour: number; minute: number },
+) {
+  return `${localDate}T${pad2(time.hour)}:${pad2(time.minute)}:00`;
+}
+
+function addMinutesToLocalDateTime(
+  localDate: string,
+  time: { hour: number; minute: number },
+  minutes: number,
+) {
+  const base = new Date(
+    Date.UTC(
+      Number(localDate.slice(0, 4)),
+      Number(localDate.slice(5, 7)) - 1,
+      Number(localDate.slice(8, 10)),
+      time.hour,
+      time.minute + minutes,
+      0,
+    ),
+  );
+  return `${base.getUTCFullYear()}-${pad2(base.getUTCMonth() + 1)}-${pad2(
+    base.getUTCDate(),
+  )}T${pad2(base.getUTCHours())}:${pad2(base.getUTCMinutes())}:00`;
+}
+
+function eventOverlapsWindow(
+  event: KodaCalendarEvent,
+  start: Date,
+  end: Date,
+  ignoreEventId?: string,
+) {
+  if (event.id === ignoreEventId || event.allDay || !event.start) return false;
+  const eventStart = new Date(event.start);
+  const eventEnd = event.end
+    ? new Date(event.end)
+    : new Date(eventStart.getTime() + 30 * 60 * 1000);
+  if (Number.isNaN(eventStart.getTime()) || Number.isNaN(eventEnd.getTime())) {
+    return false;
+  }
+  return (
+    start.getTime() < eventEnd.getTime() && end.getTime() > eventStart.getTime()
+  );
+}
+
+function meetingRequestFromMessage(message: string, timeZone: string) {
+  const recipient = extractEmailAddress(message);
+  const localDate = targetLocalDateFromMessage(message, timeZone);
+  const startTime = clockTimeFromMessage(message);
+  const durationMinutes = durationMinutesFromMessage(message) ?? 30;
+  if (!recipient || !localDate || !startTime) {
+    return { recipient, localDate, startTime, durationMinutes };
+  }
+
+  const start = localDateTimeInput(localDate, startTime);
+  const end = addMinutesToLocalDateTime(localDate, startTime, durationMinutes);
+  const localPart = recipient.split("@")[0] ?? recipient;
+  const title =
+    /\b(calendar\s+)?invite\b/i.test(message) || /\bmeeting\b/i.test(message)
+      ? `Meeting with ${localPart}`
+      : "Meeting";
+  const note =
+    /\b(?:saying|that says|with message)\s+([\s\S]+)$/i
+      .exec(message)?.[1]
+      ?.trim()
+      .replace(/[.?!]?$/, ".") ?? "I look forward to our meeting.";
+
+  return {
+    recipient,
+    localDate,
+    startTime,
+    durationMinutes,
+    start,
+    end,
+    title,
+    emailSubject: "Looking forward to our meeting",
+    emailBodyText: note,
+  };
+}
+
+function professionalEmailBody(note: string, user: { name?: string | null }) {
+  const signature = user.name?.trim() ?? "KODA";
+  return `Hi,\n\n${note}\n\nBest regards,\n${signature}`;
+}
+
+function wantsInviteAndEmailWorkflow(message: string) {
+  const lower = message.toLowerCase();
+  return (
+    Boolean(extractEmailAddress(message)) &&
+    /\b(calendar\s+)?invite\b|\b(schedule|book|create|add)\b.*\b(meeting|event|invite)\b/.test(
+      lower,
+    ) &&
+    /\b(send|email|mail|message)\b/.test(lower)
+  );
+}
+
+function wantsNewEmailDraft(message: string) {
+  const lower = message.toLowerCase();
+  if (!extractEmailAddress(message)) return false;
+  if (/\b(reply|respond|write back)\b/.test(lower)) return false;
+  return /\b(send|email|mail|message|compose|write)\b/.test(lower);
+}
+
 function cleanHeader(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
 }
@@ -593,6 +821,33 @@ function chooseActiveThreadReplyRecipient(
   return splitAddresses(activeThread.to)
     .filter((address) => extractHeaderEmail(address) !== self)
     .join(", ");
+}
+
+function compactBody(value: string, maxLength = 2500) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLength
+    ? `${normalized.slice(0, maxLength)}...`
+    : normalized;
+}
+
+function activeThreadContext(
+  activeThread: NonNullable<z.infer<typeof chatSchema>["activeThread"]>,
+) {
+  const messages = activeThread.messages.slice(-8).map(
+    (item, index) => `Message ${index + 1}
+From: ${item.from}
+To: ${item.to ?? ""}
+Time: ${item.time}
+Body: ${compactBody(item.body)}`,
+  );
+
+  return `Active email thread:
+Thread id: ${activeThread.id}
+Subject: ${activeThread.subject}
+From: ${activeThread.from}
+To: ${activeThread.to ?? ""}
+
+${messages.join("\n\n")}`;
 }
 
 function gmailQueryFromMessage(message: string) {
@@ -692,6 +947,7 @@ function toolPolicy(mode: z.infer<typeof chatSchema>["mode"], message: string) {
     return {
       activeTools: [
         "search_calendar_events",
+        "find_free_slots",
         "create_calendar_event",
         "update_calendar_event",
       ],
@@ -794,6 +1050,72 @@ ${threadText}`,
   };
 }
 
+async function prepareGeneratedEmailDraft({
+  message,
+  activeThread,
+  tenantId,
+  user,
+}: {
+  message: string;
+  activeThread?: NonNullable<z.infer<typeof chatSchema>["activeThread"]> | null;
+  tenantId: string;
+  user: { email: string; name?: string | null };
+}) {
+  const recipients = extractEmailAddresses(message);
+  if (recipients.length === 0) {
+    return {
+      status: "needs_input" as const,
+      message: "Tell me who to email.",
+      retainPrompt: true,
+      components: [
+        {
+          type: "input" as const,
+          label: "Recipient",
+          name: "recipient",
+          placeholder: "name@example.com",
+        },
+      ],
+    };
+  }
+
+  const context = activeThread
+    ? `\n\n${activeThreadContext(activeThread)}`
+    : "";
+  const result = await generateText({
+    model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+    system: `You prepare reviewed Gmail drafts for ${user.name ?? user.email} <${user.email}>.
+Return strict JSON only with keys "subject" and "body".
+The body must be a professional plain-text email with a greeting such as "Hi," and a closing such as "Best regards," "Regards," or "Thanks," unless the user asked for different wording.
+Do not include markdown fences or commentary.`,
+    prompt: `User request: ${message}
+Recipients: ${recipients.join(", ")}${context}`,
+  });
+
+  const parsed = generatedEmailDraftSchema.parse(parseJsonObject(result.text));
+  const draft = await saveEmailDraft({
+    to: recipients,
+    subject: parsed.subject,
+    body: parsed.body,
+    tenantId,
+  });
+  if (!draft.id) throw new Error("Gmail did not return a draft id.");
+
+  return {
+    status: "requires_confirmation" as const,
+    message: "I saved this as a Gmail draft. Review or edit it before sending.",
+    refresh: ["inbox"] as Array<"inbox" | "calendar">,
+    components: [
+      {
+        type: "draft_email" as const,
+        draftId: draft.id,
+        to: recipients,
+        subject: parsed.subject,
+        body: parsed.body,
+      },
+    ],
+  };
+}
+
 async function searchEmail({
   message,
   tenantId,
@@ -854,6 +1176,146 @@ async function searchCalendar({
         events: summaries,
         selection: "single" as const,
         intent: "inspect" as const,
+      },
+    ],
+  };
+}
+
+async function handleInviteAndEmailWorkflow({
+  message,
+  tenantId,
+  timeZone,
+  user,
+}: {
+  message: string;
+  tenantId: string;
+  timeZone: string;
+  user: { email: string; name?: string | null };
+}) {
+  const request = meetingRequestFromMessage(message, timeZone);
+  if (!request.recipient || !request.localDate || !request.startTime) {
+    return {
+      status: "needs_input" as const,
+      message:
+        "Tell me the recipient, date, and start time for the invite and email.",
+      retainPrompt: true,
+      components: [
+        {
+          type: "input" as const,
+          label: "Invite details",
+          name: "invite",
+          placeholder: "e.g. krunetic@gmail.com next Thursday at 9 AM",
+        },
+      ],
+    };
+  }
+
+  const startUtc = zonedTimeToUtc(
+    request.localDate,
+    request.startTime,
+    timeZone,
+  );
+  if (!startUtc) {
+    return {
+      status: "needs_input" as const,
+      message: "I could not parse the meeting time. Tell me the date and time.",
+      retainPrompt: true,
+      components: [
+        {
+          type: "input" as const,
+          label: "Date and time",
+          name: "time",
+          placeholder: "e.g. next Thursday at 9 AM",
+        },
+      ],
+    };
+  }
+  const endUtc = new Date(
+    startUtc.getTime() + request.durationMinutes * 60 * 1000,
+  );
+  if (Number.isNaN(endUtc.getTime())) {
+    return {
+      status: "needs_input" as const,
+      message: "I could not parse the meeting duration. Tell me the duration.",
+      retainPrompt: true,
+      components: [
+        {
+          type: "input" as const,
+          label: "Duration",
+          name: "duration",
+          placeholder: "e.g. 30 minutes",
+        },
+      ],
+    };
+  }
+
+  const events = await getCalendarEvents({
+    timeMin: startUtc.toISOString(),
+    timeMax: endUtc.toISOString(),
+    maxResults: 20,
+    tenantId,
+  });
+  const conflicts = events.filter((event) =>
+    eventOverlapsWindow(event, startUtc, endUtc),
+  );
+
+  if (conflicts.length > 0) {
+    const conflict = conflicts[0]!;
+    return {
+      status: "needs_input" as const,
+      message: `You already have "${conflict.title}" at ${localTimeLabel(
+        conflict.start,
+        timeZone,
+      )}. I have not created the invite or sent the email. Should I move this new meeting to another time, or reschedule the existing event?`,
+      retainPrompt: true,
+      components: [
+        {
+          type: "event_results" as const,
+          query: `${request.localDate} ${pad2(request.startTime.hour)}:${pad2(
+            request.startTime.minute,
+          )}`,
+          events: conflicts.map(mapEventSummary),
+          selection: "single" as const,
+          intent: "inspect" as const,
+        },
+      ],
+    };
+  }
+
+  const event = await createCalendarEvent({
+    title: request.title ?? "Meeting",
+    start: request.start!,
+    end: request.end!,
+    attendees: [request.recipient],
+    timeZone,
+    sendUpdates: "all",
+  });
+  const body = professionalEmailBody(
+    request.emailBodyText ?? "I look forward to our meeting.",
+    user,
+  );
+  const draft = await saveEmailDraft({
+    to: [request.recipient],
+    subject: request.emailSubject ?? "Looking forward to our meeting",
+    body,
+    tenantId,
+  });
+  if (!draft.id) throw new Error("Gmail did not return a draft id.");
+
+  return {
+    status: "requires_confirmation" as const,
+    message: `Created "${event.title}" for ${localTimeLabel(
+      event.start,
+      timeZone,
+    )}. I saved the related email as a Gmail draft so you can review it before sending.`,
+    refresh: ["calendar", "inbox"] as Array<"inbox" | "calendar">,
+    components: [
+      {
+        type: "draft_email" as const,
+        draftId: draft.id,
+        to: [request.recipient],
+        subject: request.emailSubject ?? "Looking forward to our meeting",
+        body,
       },
     ],
   };
@@ -971,6 +1433,81 @@ async function prepareCalendarEdit({
   });
 
   if (candidates.length > 0) {
+    const event = candidates.length === 1 ? candidates[0]! : null;
+    const targetDate =
+      targetLocalDateFromMessage(message, timeZone) ??
+      (event?.start ? localDateFor(new Date(event.start), timeZone) : null);
+    const targetTime =
+      clockTimeFromMessage(message) ??
+      (event?.start ? timeZoneParts(new Date(event.start), timeZone) : null);
+
+    if (event && targetDate && targetTime && event.start) {
+      const currentStart = new Date(event.start);
+      const currentEnd = event.end
+        ? new Date(event.end)
+        : new Date(currentStart.getTime() + 30 * 60 * 1000);
+      const durationMinutes =
+        Number.isNaN(currentStart.getTime()) ||
+        Number.isNaN(currentEnd.getTime())
+          ? 30
+          : Math.max(
+              15,
+              Math.round(
+                (currentEnd.getTime() - currentStart.getTime()) / 60000,
+              ),
+            );
+      const newStartUtc = zonedTimeToUtc(targetDate, targetTime, timeZone);
+      const newEndUtc = newStartUtc
+        ? new Date(newStartUtc.getTime() + durationMinutes * 60 * 1000)
+        : null;
+
+      if (newStartUtc && newEndUtc) {
+        const conflicts = events.filter((candidate) =>
+          eventOverlapsWindow(candidate, newStartUtc, newEndUtc, event.id),
+        );
+        if (conflicts.length > 0) {
+          const conflict = conflicts[0]!;
+          return {
+            status: "needs_input" as const,
+            message: `That time conflicts with "${conflict.title}" at ${localTimeLabel(
+              conflict.start,
+              timeZone,
+            )}. Should I move this event to another time, or reschedule the existing event?`,
+            retainPrompt: true,
+            components: [
+              {
+                type: "event_results" as const,
+                query: message,
+                events: conflicts.map(mapEventSummary),
+                selection: "single" as const,
+                intent: "inspect" as const,
+              },
+            ],
+          };
+        }
+
+        const updated = await updateCalendarEvent(event.id, {
+          start: localDateTimeInput(targetDate, targetTime),
+          end: addMinutesToLocalDateTime(
+            targetDate,
+            targetTime,
+            durationMinutes,
+          ),
+          timeZone,
+          sendUpdates: "all",
+        });
+        return {
+          status: "success" as const,
+          message: `Rescheduled "${updated.title}" to ${localTimeLabel(
+            updated.start,
+            timeZone,
+          )}. Attendees were notified.`,
+          refresh: ["calendar"] as Array<"inbox" | "calendar">,
+          components: [{ type: "text" as const, text: "Calendar updated." }],
+        };
+      }
+    }
+
     return {
       status: "needs_input" as const,
       message:
@@ -1032,24 +1569,30 @@ Current local time for user: ${localNow}
 User: ${user.name ?? user.email} <${user.email}>
 Tenant id: ${user.id}
 
-You can search Gmail, search Calendar, search stored commitments, send Gmail messages, and create/update/delete Calendar events using tools.
+You can search Gmail, search Calendar, search stored commitments, prepare reviewed Gmail drafts, and create/update/delete Calendar events using tools.
 
 Rules:
 - Be concise and operational. Do not mention implementation internals unless asked.
 - Use tools when the user asks about live email/calendar data or asks you to perform an action.
+- If the user asks to search, find, show, list, or count emails, call search_email and answer with a concrete list of matching subjects/senders/dates. Do not give a generic search strategy.
+- Treat "this email", "this thread", "open email", "selected email", and "summarize this" as references to the active email thread when active thread context is provided.
 - Use search_commitments when the user asks about commitments, owed work, promises, follow-ups, overdue items, or who owes what.
 - For destructive calendar deletes, only proceed if the user's request is explicit and the event is specific. If ambiguous, ask a short clarification instead.
-- For natural-language calendar update/delete requests, search events first. If exactly one event matches, act. If zero or multiple events match, answer with the candidate count and ask one short clarification.
+- For natural-language calendar update/delete requests, search events first. If exactly one event matches and the requested change is clear, act using update_calendar_event. If zero or multiple events match, answer with the candidate count and ask one short clarification.
 - Gmail delete/archive is not available yet. If asked to delete email, say that Gmail delete is not supported in KODA yet.
 - Never report "0" live emails/events unless the relevant search tool returned an empty result.
 - Ask at most one concise follow-up question when required context is missing or ambiguous. Do not ask a follow-up when the request contains enough context to act.
-- For sending email, do not invent recipients. If recipient, subject, or body cannot be inferred from the request, ask for the missing field.
-- If the user asks to reply/respond/write back to an active/open/selected thread, draft a reply for confirmation. Do not call send_email for active-thread replies.
+- For sending email, do not invent recipients. If recipient, subject, or body cannot be inferred from the request, ask for the missing field. New outbound emails must be saved as drafts and shown for review/edit before sending.
+- When composing a new professional email, include a greeting such as "Hi," and a closing such as "Best regards," "Regards," or "Thanks," unless the user requests otherwise.
+- If the user asks to reply/respond/write back to an active/open/selected thread, draft a reply for confirmation.
 - For scheduling, all relative dates and times such as today, tomorrow, tonight, or 9:30pm refer to the user's timezone, not UTC or server time.
 - For Calendar searches by local day, use search_calendar_events with date "${localDate}" for today instead of manually constructing UTC timeMin/timeMax. For broad listings like "events today", omit the query field so it does not filter out events by title text.
 - Preserve explicit minutes exactly. Interpret "9.30pm" or "9:30pm" as 21:30, never as 21:00, and do not round start/end times unless the user asks you to.
 - When creating or updating timed Calendar events from user-local times, pass the user's timezone and local ISO datetime values without a trailing Z, for example start "2026-06-12T21:30:00" with timeZone "${timeZone}".
-- Required scheduling fields are title/purpose, date, time, and duration/end. If any required field is missing and cannot be inferred, ask one follow-up.
+- Required scheduling fields are title/purpose, date, and time. If duration/end is missing for a simple meeting invite, infer 30 minutes. If any other required field is missing and cannot be inferred, ask one follow-up.
+- For requests that combine a Calendar invite/event and a new email, check Calendar for conflicts before sending email. If the requested slot conflicts with another event, do not create the event and do not send the email; ask whether to move the new meeting or reschedule the existing event.
+- When a requested slot is blocked or the user asks for availability, use find_free_slots to suggest concrete alternatives.
+- After a conflict is resolved by the user, create/update the Calendar event first and send the related email only after the Calendar action succeeds.
 - Commitment extraction stores only what has already been extracted. If no commitments are found, say none are stored yet and suggest running extraction from the Commitments page.`;
 }
 
@@ -1119,6 +1662,30 @@ export async function POST(request: Request) {
       );
     }
 
+    if (wantsInviteAndEmailWorkflow(normalizedMessage)) {
+      return successfulChatResponse(
+        session.user.id,
+        await handleInviteAndEmailWorkflow({
+          message: normalizedMessage,
+          tenantId: session.user.id,
+          timeZone,
+          user: session.user,
+        }),
+      );
+    }
+
+    if (wantsNewEmailDraft(normalizedMessage)) {
+      return successfulChatResponse(
+        session.user.id,
+        await prepareGeneratedEmailDraft({
+          message: normalizedMessage,
+          activeThread: input.activeThread,
+          tenantId: session.user.id,
+          user: session.user,
+        }),
+      );
+    }
+
     if (wantsCalendarDelete(normalizedMessage)) {
       return successfulChatResponse(
         session.user.id,
@@ -1172,6 +1739,9 @@ export async function POST(request: Request) {
     const prompt = mode
       ? `${modeInstructions(mode)}\n\nUser request: ${normalizedMessage}`
       : normalizedMessage;
+    const contextualPrompt = input.activeThread
+      ? `${activeThreadContext(input.activeThread)}\n\nUser request: ${prompt}`
+      : prompt;
 
     // Carry the prior conversation so follow-ups have context. The current
     // prompt is appended as the final user turn.
@@ -1182,7 +1752,10 @@ export async function POST(request: Request) {
     const result = await generateText({
       model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
       system: systemPrompt(session.user, timeZone),
-      messages: [...priorTurns, { role: "user" as const, content: prompt }],
+      messages: [
+        ...priorTurns,
+        { role: "user" as const, content: contextualPrompt },
+      ],
       tools: buildKodaAiTools(session.user.id, { timeZone }),
       ...policy,
       stopWhen: stepCountIs(8),
@@ -1195,8 +1768,12 @@ export async function POST(request: Request) {
       components: [{ type: "text", text: result.text }],
     });
   } catch (error) {
-    const raw = error instanceof Error ? error.message : "";
-    const message = friendlyChatError(raw);
+    const raw = error instanceof Error ? error.message : String(error);
+    console.error("[koda/chat] error:", raw, error);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? raw
+        : friendlyChatError(raw);
     return NextResponse.json(
       {
         status: "error",
