@@ -4,7 +4,8 @@
 
 Gmail and Google Calendar behind one command, and one voice. See your mail and your schedule together, then ask KODA in plain language (or just speak) to draft replies, book and reschedule meetings, send reminders, and track what you're owed, in realtime.
 
-Live at [koda.shubhamdalvi.in](https://koda.shubhamdalvi.in) · interactive deck at `/pitch-deck` · [docs/pitch-deck.md](docs/pitch-deck.md) · roadmap & gaps in [docs/feature-gaps.md](docs/feature-gaps.md).
+Live at [koda.shubhamdalvi.in](https://koda.shubhamdalvi.in)
+Pitch deck at [koda.shubhamdalvi.in/pitch-deck](https://koda.shubhamdalvi.in/pitch-deck)
 
 ---
 
@@ -117,21 +118,3 @@ Four layers:
 The moat is the combination: a workflow-specific data model, accumulated action history, the commitment graph, and execution quality.
 
 ---
-
-## Status
-
-Shipped and deployed:
-
-- Google sign-in (Better Auth + OAuth)
-- Google sign-in (Better Auth + OAuth)
-- Gmail sync, search, send, reply, draft inbox, and draft management tab
-- Google Calendar create / update / delete + free-slot finder + reschedule assistant
-- `⌘K` command-bar agent with 9 AI tools
-- `⌘⇧K` voice control
-- Commitment extraction and tracking with one-click reminder drafting
-- **Email aliases**, `@handle` shortcuts in compose that resolve to real addresses; add from thread, manage at `/aliases`
-- AI quota tracking (daily limit)
-- Realtime ingestion via Corsair webhooks
-- Privacy and terms pages
-
-Known gaps and the build order are tracked in [docs/feature-gaps.md](docs/feature-gaps.md).

@@ -150,7 +150,7 @@ const slides: Slide[] = [
     kicker: "How it works",
     headline: [{ t: "ask once. " }, { t: "koda does the rest", hl: true }],
     steps: [
-      "ask or speak",
+      "type or speak",
       "koda reads mail + calendar",
       "it drafts & schedules",
       "sends in realtime",
@@ -168,7 +168,7 @@ const slides: Slide[] = [
       },
       {
         title: "voice control",
-        body: "Hold ⌘⇧K and talk. No keyboard, no clicking through screens.",
+        body: "Press ⌘⇧K and just talk. No holding down buttons",
       },
       {
         title: "draft & reply",
