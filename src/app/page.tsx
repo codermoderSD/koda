@@ -162,15 +162,28 @@ export default async function Home() {
 
       <main className="relative isolate">
         <section className="relative isolate min-h-[calc(100vh-56px)] overflow-hidden px-5 py-14 sm:px-6 sm:py-18">
-          <Image
-            src="/hero.png"
-            alt="KODA workspace showing Gmail, thread actions, and Calendar side by side"
-            fill
-            priority
-            sizes="100vw"
-            className="absolute inset-0 -z-20 object-cover object-[58%_18%] opacity-[0.46]"
-          />
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,var(--color-surface)_0%,rgb(10_11_13_/_0.9)_32%,rgb(10_11_13_/_0.58)_62%,rgb(10_11_13_/_0.72)_100%)]" />
+          <div className="aurora -z-30" aria-hidden />
+          <div className="absolute top-16 right-[-9rem] bottom-8 -z-20 hidden w-[min(58vw,760px)] lg:block">
+            <Image
+              src="/hero.png"
+              alt="KODA workspace showing Gmail, thread actions, and Calendar side by side"
+              fill
+              priority
+              sizes="(min-width: 1024px) 58vw, 100vw"
+              className="object-contain object-right opacity-[0.72] drop-shadow-[0_24px_80px_rgb(0_0_0_/_0.55)]"
+            />
+          </div>
+          <div className="absolute right-[-42vw] bottom-8 -z-20 h-[42vh] w-[120vw] sm:right-[-28vw] lg:hidden">
+            <Image
+              src="/hero.png"
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-contain object-right-bottom opacity-[0.26]"
+            />
+          </div>
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,var(--color-surface)_0%,rgb(10_11_13_/_0.9)_36%,rgb(10_11_13_/_0.42)_70%,rgb(10_11_13_/_0.2)_100%)]" />
           <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
 
           <div className="mx-auto flex min-h-[calc(100vh-168px)] max-w-6xl flex-col justify-center">
