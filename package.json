@@ -21,8 +21,8 @@
     "test": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^3.0.39",
     "@ai-sdk/mcp": "^1.0.47",
+    "@ai-sdk/openai": "^3.0.72",
     "@auth/drizzle-adapter": "^1.7.2",
     "@corsair-dev/cli": "^0.1.19",
     "@corsair-dev/gmail": "^0.1.4",

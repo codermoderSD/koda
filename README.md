@@ -47,7 +47,7 @@ This is not "AI for email." It is execution: it acts in realtime, instead of jus
 
 ### Command bar (the agent)
 
-`⌘K` opens a natural-language command bar with modes for ask / search / draft / schedule. It runs on the Vercel AI SDK over Groq and calls KODA's tools to act on your real data, never a generic chatbot.
+`⌘K` opens a natural-language command bar with modes for ask / search / draft / schedule. It runs on the Vercel AI SDK over OpenAI's `gpt-4o-mini` and calls KODA's tools to act on your real data, never a generic chatbot.
 
 ### Voice
 
@@ -99,7 +99,7 @@ Most email tools optimize for faster triage, prettier inboxes, or better draftin
 - PostgreSQL + Drizzle ORM
 - Better Auth + Google OAuth
 - Gmail and Google Calendar APIs via self-hosted Corsair
-- AI SDK + Groq (model-flexible)
+- AI SDK + OpenAI (`gpt-4o-mini` by default)
 - Web Speech API for voice
 - Zod, TanStack Query, tRPC
 - Vercel and Vercel Analytics

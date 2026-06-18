@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { openai } from "@ai-sdk/openai";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 
@@ -358,8 +358,8 @@ export async function extractCommitmentsFromRecentEmails({
   timeZone?: string;
   limit?: number;
 }) {
-  if (!env.GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY is required for commitment extraction.");
+  if (!env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is required for commitment extraction.");
   }
 
   const sourceEmails = await db
@@ -373,7 +373,7 @@ export async function extractCommitmentsFromRecentEmails({
   }
 
   const result = await generateText({
-    model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+    model: openai(env.KODA_AI_MODEL ?? "gpt-4o-mini"),
     system:
       "You extract reliable work commitments from email. You return strict JSON and no markdown.",
     prompt: buildExtractionPrompt({ sourceEmails, userEmail, timeZone }),
@@ -441,12 +441,12 @@ export async function extractCommitmentsFromThread({
   const id = threadId.trim();
   if (!id) throw new Error("Thread id is required.");
   if (messages.length === 0) throw new Error("Thread messages are required.");
-  if (!env.GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY is required for commitment extraction.");
+  if (!env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is required for commitment extraction.");
   }
 
   const result = await generateText({
-    model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+    model: openai(env.KODA_AI_MODEL ?? "gpt-4o-mini"),
     system:
       "You extract reliable work commitments from email threads. You return strict JSON and no markdown.",
     prompt: buildThreadExtractionPrompt({

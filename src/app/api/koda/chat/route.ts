@@ -1,5 +1,5 @@
 import { generateText, stepCountIs } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { openai } from "@ai-sdk/openai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -1018,7 +1018,7 @@ ${item.body}`,
     .join("\n\n---\n\n");
 
   const result = await generateText({
-    model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+    model: openai(env.KODA_AI_MODEL ?? "gpt-4o-mini"),
     system: `You draft concise Gmail replies for ${user.name ?? user.email} <${user.email}>.
 Return only the reply body. Do not include a subject, greeting labels, markdown fences, or commentary.
 Use the active thread context. If the user did not specify tone or details, write a professional, useful reply based on the latest email.`,
@@ -1080,7 +1080,7 @@ async function prepareGeneratedEmailDraft({
     ? `\n\n${activeThreadContext(activeThread)}`
     : "";
   const result = await generateText({
-    model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+    model: openai(env.KODA_AI_MODEL ?? "gpt-4o-mini"),
     system: `You prepare reviewed Gmail drafts for ${user.name ?? user.email} <${user.email}>.
 Return strict JSON only with keys "subject" and "body".
 The body must be a professional plain-text email with a greeting such as "Hi," and a closing such as "Best regards," "Regards," or "Thanks," unless the user asked for different wording.
@@ -1601,9 +1601,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!env.GROQ_API_KEY) {
+    if (!env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured." },
+        { error: "OPENAI_API_KEY is not configured." },
         { status: 500 },
       );
     }
@@ -1745,7 +1745,7 @@ export async function POST(request: Request) {
       .map((turn) => ({ role: turn.role, content: turn.content }));
 
     const result = await generateText({
-      model: groq(env.KODA_AI_MODEL ?? "llama-3.3-70b-versatile"),
+      model: openai(env.KODA_AI_MODEL ?? "gpt-4o-mini"),
       system: systemPrompt(session.user, timeZone),
       messages: [
         ...priorTurns,
