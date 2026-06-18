@@ -161,9 +161,13 @@ export default async function Home() {
       <LandingNav />
 
       <main className="relative isolate">
-        <section className="relative isolate min-h-[calc(100vh-56px)] overflow-hidden px-5 py-14 sm:px-6 sm:py-18">
-          <div className="aurora -z-30" aria-hidden />
-          <div className="absolute top-16 right-[-9rem] bottom-8 -z-20 hidden w-[min(58vw,760px)] lg:block">
+        <section className="relative isolate min-h-[calc(100vh-56px)] overflow-hidden bg-[var(--color-surface)] px-5 py-14 sm:px-6 sm:py-18">
+          <div className="aurora z-0" aria-hidden />
+          <div
+            className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_48%_22%,rgb(52_211_153_/_0.28),transparent_34%),radial-gradient(circle_at_72%_48%,rgb(16_185_129_/_0.16),transparent_32%)]"
+            aria-hidden
+          />
+          <div className="absolute top-16 right-[-9rem] bottom-8 z-[1] hidden w-[min(58vw,760px)] lg:block">
             <Image
               src="/hero.png"
               alt="KODA workspace showing Gmail, thread actions, and Calendar side by side"
@@ -173,7 +177,7 @@ export default async function Home() {
               className="object-contain object-right opacity-[0.72] drop-shadow-[0_24px_80px_rgb(0_0_0_/_0.55)]"
             />
           </div>
-          <div className="absolute right-[-42vw] bottom-8 -z-20 h-[42vh] w-[120vw] sm:right-[-28vw] lg:hidden">
+          <div className="absolute right-[-42vw] bottom-8 z-[1] h-[42vh] w-[120vw] sm:right-[-28vw] lg:hidden">
             <Image
               src="/hero.png"
               alt=""
@@ -183,10 +187,10 @@ export default async function Home() {
               className="object-contain object-right-bottom opacity-[0.26]"
             />
           </div>
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,var(--color-surface)_0%,rgb(10_11_13_/_0.9)_36%,rgb(10_11_13_/_0.42)_70%,rgb(10_11_13_/_0.2)_100%)]" />
-          <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
+          <div className="absolute inset-0 z-[2] bg-[linear-gradient(90deg,var(--color-surface)_0%,rgb(10_11_13_/_0.84)_36%,rgb(10_11_13_/_0.3)_70%,rgb(10_11_13_/_0.1)_100%)]" />
+          <div className="grid-texture absolute inset-0 z-[3]" aria-hidden />
 
-          <div className="mx-auto flex min-h-[calc(100vh-168px)] max-w-6xl flex-col justify-center">
+          <div className="relative z-10 mx-auto flex min-h-[calc(100vh-168px)] max-w-6xl flex-col justify-center">
             <div className="max-w-2xl">
               <span className="rise inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface)_72%,transparent)] px-3 py-1 font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-muted)] backdrop-blur">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
