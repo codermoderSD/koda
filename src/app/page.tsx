@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { getOptionalSession } from "~/server/better-auth/server";
@@ -13,7 +14,14 @@ export const metadata: Metadata = {
     "Gmail and Google Calendar behind one command. Ask in plain language or by voice, KODA drafts replies, books and reschedules meetings, and tracks commitments in realtime.",
 };
 
-type IconName = "agent" | "voice" | "inbox" | "calendar" | "alias";
+type IconName =
+  | "agent"
+  | "voice"
+  | "inbox"
+  | "calendar"
+  | "alias"
+  | "shield"
+  | "commitments";
 
 function Icon({ name }: { name: IconName }) {
   const common = {
@@ -53,6 +61,20 @@ function Icon({ name }: { name: IconName }) {
         <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
       </svg>
     );
+  if (name === "shield")
+    return (
+      <svg {...common}>
+        <path d="M12 3l7 3v5c0 4.2-2.9 7.5-7 8.5-4.1-1-7-4.3-7-8.5V6z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    );
+  if (name === "commitments")
+    return (
+      <svg {...common}>
+        <path d="M5 5.5h14M5 12h14M5 18.5h8" />
+        <path d="m3 5.5.8.8L5.5 4.5M3 12l.8.8 1.7-1.8M3 18.5l.8.8 1.7-1.8" />
+      </svg>
+    );
   return (
     <svg {...common}>
       <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5 10.1 10.9 5.5 9l4.6-1.4z" />
@@ -61,48 +83,72 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
+const outcomes = [
+  { value: "1", label: "workspace for Gmail and Calendar" },
+  { value: "9", label: "AI tools over live Google data" },
+  { value: "20", label: "daily KODA actions included" },
+] as const;
+
 const capabilities: Array<{ icon: IconName; title: string; body: string }> = [
   {
     icon: "agent",
     title: "One command for everything",
-    body: "Search, draft, send, schedule, and reschedule across Gmail and Calendar, from a single ⌘K command bar.",
+    body: "Search, draft, send, schedule, and reschedule across Gmail and Calendar from a single command bar.",
   },
   {
     icon: "voice",
     title: "Voice control",
-    body: "Hold ⌘⇧K and talk. KODA types, books, and sends, hands-free, no keyboard.",
+    body: "Press the voice shortcut and say what needs to happen. KODA turns it into a draft, event, or search.",
   },
   {
     icon: "inbox",
-    title: "Draft & reply without typing",
-    body: "Ask KODA to write the reminder or reply. It composes from thread context and sends in realtime.",
+    title: "Context-aware replies",
+    body: "Replies are generated from the open thread, with the right recipient, subject, and conversation context.",
   },
   {
     icon: "calendar",
-    title: "Schedule in place",
-    body: "Create events, move them, and find open slots without ever leaving the email.",
+    title: "Scheduling in place",
+    body: "Create events, move meetings, and find free slots while staying inside the inbox workflow.",
+  },
+  {
+    icon: "commitments",
+    title: "Commitment tracking",
+    body: "KODA extracts promises, deadlines, owners, and source quotes so follow-ups do not disappear.",
   },
   {
     icon: "alias",
     title: "@alias shortcuts",
-    body: "Name your frequent contacts. Type @cto in compose and KODA resolves it to the real address, no copy-pasting.",
+    body: "Name frequent contacts once. Type @cto or @client and KODA resolves it to the right address.",
   },
 ];
 
-const steps = [
+const workflows = [
   {
-    title: "Connect Google",
-    body: "Authorize Gmail and Calendar once. KODA syncs your mail and schedule into one workspace.",
+    title: "Triage the inbox",
+    body: "Read a thread, find the next action, draft the reply, and send it without switching tools.",
   },
   {
-    title: "Ask in a line, or speak",
-    body: "Type or say what you want: find a thread, draft a reply, book a meeting, or move one.",
+    title: "Turn mail into meetings",
+    body: "Ask for a time, create the Calendar event, and reply with the details from the same command.",
   },
   {
-    title: "KODA acts in realtime",
-    body: "It reads mail and calendar, drafts, schedules, and sends, then tracks what you're owed.",
+    title: "Track what is owed",
+    body: "Extract commitments from mail and keep active, expired, and resolved items visible in one lane.",
   },
-];
+] as const;
+
+const security = [
+  "Google OAuth only, no password collection.",
+  "Tenant-scoped Corsair storage for Google tokens.",
+  "Gmail and Calendar access can be revoked from Google anytime.",
+] as const;
+
+const useCases = [
+  "Founders coordinating hiring, sales, and investor follow-ups.",
+  "Students and builders managing deadlines, interviews, and mentors.",
+  "Operators who live between email, calendar, and reminders.",
+  "Anyone who wants an assistant that acts instead of only summarizing.",
+] as const;
 
 export default async function Home() {
   const session = await getOptionalSession();
@@ -115,296 +161,83 @@ export default async function Home() {
       <LandingNav />
 
       <main className="relative isolate">
-        <section className="relative isolate flex flex-col items-center px-5 pt-16 pb-16 text-center sm:px-6 sm:pt-24 sm:pb-24">
-          <div className="aurora" aria-hidden />
+        <section className="relative isolate min-h-[calc(100vh-56px)] overflow-hidden px-5 py-14 sm:px-6 sm:py-18">
+          <Image
+            src="/hero.png"
+            alt="KODA workspace showing Gmail, thread actions, and Calendar side by side"
+            fill
+            priority
+            sizes="100vw"
+            className="absolute inset-0 -z-20 object-cover object-[58%_18%] opacity-[0.46]"
+          />
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,var(--color-surface)_0%,rgb(10_11_13_/_0.9)_32%,rgb(10_11_13_/_0.58)_62%,rgb(10_11_13_/_0.72)_100%)]" />
           <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
 
-          <div className="mx-auto flex w-full max-w-6xl flex-col items-center">
-            <span className="rise inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-1 font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-muted)] backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-              Gmail + Calendar
-            </span>
+          <div className="mx-auto flex min-h-[calc(100vh-168px)] max-w-6xl flex-col justify-center">
+            <div className="max-w-2xl">
+              <span className="rise inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface)_72%,transparent)] px-3 py-1 font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-muted)] backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+                Gmail + Calendar
+              </span>
 
-            <h1 className="rise display mt-6 max-w-3xl text-[2.5rem] leading-[1.05] sm:text-6xl">
-              The execution layer for
-              <br className="hidden sm:block" /> email and calendar.
-            </h1>
+              <h1 className="rise display mt-6 max-w-2xl text-[2.65rem] leading-[1.02] sm:text-6xl">
+                The execution layer for email and calendar.
+              </h1>
 
-            <p className="rise mt-5 max-w-xl text-[15px] leading-7 text-[var(--color-text-muted)] sm:text-base">
-              Your mail and your schedule, behind one command. Ask in plain
-              language, or just speak, and KODA drafts replies, books meetings,
-              and reschedules in realtime. No more bouncing between two tabs.
-            </p>
+              <p className="rise mt-5 max-w-xl text-[15px] leading-7 text-[var(--color-text-muted)] sm:text-base">
+                Ask in plain language, or just speak. KODA drafts replies, books
+                meetings, reschedules events, and tracks commitments across
+                Gmail and Google Calendar.
+              </p>
 
-            <div className="rise mt-8 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
-              <Link
-                href={primaryCta.href}
-                className="btn-glow inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--color-accent-strong)] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-emerald-600"
-              >
-                {primaryCta.label}
-              </Link>
-            </div>
+              <div className="rise mt-8 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
+                <Link
+                  href={primaryCta.href}
+                  className="btn-glow inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--color-accent-strong)] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-emerald-600"
+                >
+                  {primaryCta.label}
+                </Link>
+                <Link
+                  href="#features"
+                  className="inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-surface)_62%,transparent)] px-5 py-2.5 text-[14px] font-medium text-[var(--color-text)] backdrop-blur transition hover:bg-[var(--color-panel-strong)]"
+                >
+                  See features
+                </Link>
+              </div>
 
-            <p className="rise mt-6 font-mono text-[11px] tracking-[0.1em] text-[var(--color-text-soft)] uppercase">
-              tenant-scoped · no passwords stored
-            </p>
-
-            <div className="rise relative mt-12 w-full sm:mt-16">
-              <div className="float overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] shadow-[var(--shadow-soft)]">
-                <div className="flex items-center gap-2 border-b border-[var(--color-line)] px-4 py-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-danger)]" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-warning)]" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-success)]" />
-                  <span className="ml-3 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-text-soft)]">
-                    koda.shubhamdalvi.in/inbox
-                  </span>
-                </div>
-
-                <div className="grid min-h-[390px] grid-cols-1 text-left md:min-h-[440px] md:grid-cols-[1.7fr_2fr_1.5fr]">
-                  <div className="flex flex-col border-b border-[var(--color-line)] md:border-r md:border-b-0">
-                    <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
-                          Mail
-                        </span>
-                        <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                          15/20
-                        </span>
-                      </div>
-                      <span className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-0.5 text-[11px] font-medium text-white">
-                        Compose
-                      </span>
-                    </div>
-                    <div className="divide-y divide-[var(--color-line)]">
-                      {[
-                        {
-                          initials: "KR",
-                          from: "Krunetic",
-                          time: "10:23",
-                          subject: "Blind 75 DSA Sheet",
-                          preview: "Please help me understand…",
-                          tag: "NEEDS REPLY",
-                          tone: "text-[var(--color-warning)] bg-[var(--color-warning-soft)]",
-                          active: true,
-                        },
-                        {
-                          initials: "UP",
-                          from: "upGrad",
-                          time: "4:06",
-                          subject: "7 Months · IIIT-B + Microsoft",
-                          preview: "Why you should join this…",
-                          tag: "NEW",
-                          tone: "text-[var(--color-accent)] bg-[var(--color-accent-soft)]",
-                          active: false,
-                        },
-                        {
-                          initials: "GJ",
-                          from: "Glassdoor Jobs",
-                          time: "1:01",
-                          subject: "Software Engineer · AI Trainer",
-                          preview: "Latest roles matched to you…",
-                          tag: "OPEN",
-                          tone: "text-[var(--color-text-soft)] bg-[var(--color-panel-strong)]",
-                          active: false,
-                        },
-                      ].map((row) => (
-                        <div
-                          key={row.from}
-                          className={`flex gap-3 border-l-2 px-3 py-2.5 ${
-                            row.active
-                              ? "border-l-transparent bg-[var(--color-panel-strong)]"
-                              : "border-l-transparent"
-                          }`}
-                        >
-                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
-                            {row.initials}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                                {row.from}
-                              </p>
-                              <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                                {row.time}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-muted)]">
-                              {row.subject}
-                            </p>
-                            <span
-                              className={`mt-1.5 inline-flex rounded-[var(--radius-sm)] px-1.5 py-0.5 font-mono text-[10px] tracking-[0.08em] ${row.tone}`}
-                            >
-                              {row.tag}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+              <div className="rise mt-10 grid max-w-xl grid-cols-3 gap-3">
+                {outcomes.map((item) => (
+                  <div
+                    key={item.label}
+                    className="border-l border-[var(--color-line-strong)] pl-3"
+                  >
+                    <p className="font-mono text-[18px] text-[var(--color-text)]">
+                      {item.value}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--color-text-soft)]">
+                      {item.label}
+                    </p>
                   </div>
-
-                  <div className="flex flex-col border-b border-[var(--color-line)] md:border-r md:border-b-0">
-                    <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
-                      <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
-                        Thread
-                      </span>
-                      <span className="font-mono text-[12px] text-[var(--color-text-soft)]">
-                        ,
-                      </span>
-                    </div>
-                    <div className="px-4 py-3.5">
-                      <h2 className="text-[15px] leading-snug font-medium tracking-tight text-[var(--color-text)]">
-                        Re: Blind 75 DSA Sheet
-                      </h2>
-                      <p className="mt-1 text-[12px] text-[var(--color-text-soft)]">
-                        Krunetic · to you · Jun 15, 10:23 AM
-                      </p>
-                      <div className="mt-3 flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[11px] font-medium text-white">
-                          <svg
-                            viewBox="0 0 16 16"
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <rect
-                              x="2.5"
-                              y="3.5"
-                              width="11"
-                              height="10"
-                              rx="1.5"
-                            />
-                            <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" />
-                          </svg>
-                          Schedule
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)]">
-                          <svg
-                            viewBox="0 0 16 16"
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M8 1.5l1.4 3.4L12.8 6 9.4 7.4 8 10.8 6.6 7.4 3.2 6l3.4-1.1z" />
-                          </svg>
-                          Extract
-                        </span>
-                      </div>
-                    </div>
-                    <div className="border-t border-[var(--color-line)] px-4 py-3">
-                      <div className="rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)]">
-                        <div className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-3 py-2">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[10px] font-medium text-[var(--color-text-muted)]">
-                            KR
-                          </span>
-                          <p className="text-[13px] font-medium text-[var(--color-text)]">
-                            Krunetic
-                          </p>
-                        </div>
-                        <p className="px-3 py-2.5 text-[13px] leading-6 text-[var(--color-text-muted)]">
-                          Please help me understand what is Blind 75 DSA Sheet.
-                          Treat it as urgent.
-                        </p>
-                      </div>
-                      <div className="mt-3 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-4 w-4 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-text)] font-mono text-[9px] font-medium text-[var(--color-surface)]">
-                            K
-                          </span>
-                          <span className="kicker">Reply</span>
-                        </div>
-                        <p className="mt-2.5 text-[13px] leading-6 text-[var(--color-text)]">
-                          Happy to walk you through the Blind 75, I&apos;ve
-                          scheduled 30 minutes and sent an invite.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="hidden flex-col md:flex">
-                    <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
-                          Calendar
-                        </span>
-                        <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                          Jun
-                        </span>
-                      </div>
-                      <span className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">
-                        + New
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1 border-b border-[var(--color-line)] p-3">
-                      {[
-                        ["M", 15, true],
-                        ["T", 16, false],
-                        ["W", 17, false],
-                        ["T", 18, false],
-                        ["F", 19, false],
-                        ["S", 20, false],
-                        ["S", 21, false],
-                      ].map(([label, date, today]) => (
-                        <div
-                          key={date as number}
-                          className={`flex flex-col items-center gap-1 rounded-[var(--radius)] py-1.5 ${
-                            today ? "bg-[var(--color-panel-strong)]" : ""
-                          }`}
-                        >
-                          <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                            {label}
-                          </span>
-                          <span
-                            className={`text-[12px] font-medium ${
-                              today
-                                ? "text-[var(--color-accent)]"
-                                : "text-[var(--color-text)]"
-                            }`}
-                          >
-                            {date}
-                          </span>
-                          <span className="h-1">
-                            {(date === 15 || date === 19) && (
-                              <span className="block h-1 w-1 rounded-full bg-[var(--color-accent)]" />
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-3">
-                      <p className="kicker mb-1.5 px-1">Up next</p>
-                      <div className="space-y-0.5">
-                        {[
-                          ["Blind 75 discussion", "Wed · 2:00 PM"],
-                          ["Hackathon work reminder", "Wed · 9:00 AM"],
-                          ["Catch up", "Fri · 12:00 PM"],
-                        ].map(([title, when]) => (
-                          <div
-                            key={title}
-                            className="flex items-center gap-2.5 rounded-[var(--radius)] px-2 py-1.5"
-                          >
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
-                            <div className="min-w-0">
-                              <p className="truncate text-[13px] text-[var(--color-text)]">
-                                {title}
-                              </p>
-                              <p className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                                {when}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="border-y border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_70%,transparent)]">
+          <div className="mx-auto grid max-w-6xl gap-4 px-5 py-6 sm:grid-cols-3 sm:px-6">
+            {[
+              "Drafts from thread context",
+              "Calendar actions in the inbox",
+              "Follow-ups tracked automatically",
+            ].map((item) => (
+              <p
+                key={item}
+                className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase"
+              >
+                {item}
+              </p>
+            ))}
           </div>
         </section>
 
@@ -412,14 +245,18 @@ export default async function Home() {
           id="features"
           className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
         >
-          <div className="mx-auto max-w-2xl text-center">
+          <div className="max-w-2xl">
             <p className="kicker text-[var(--color-accent)]">Capabilities</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">
-              One command across mail and calendar.
+              One command across mail, meetings, and promises.
             </h2>
+            <p className="mt-4 text-[14px] leading-7 text-[var(--color-text-muted)]">
+              KODA is not a separate chatbot. It sits inside the workspace where
+              the work already happens and calls real tools against your data.
+            </p>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:mt-12 sm:grid-cols-2">
+          <div className="mt-10 grid gap-3 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3">
             {capabilities.map((cap) => (
               <div
                 key={cap.title}
@@ -440,33 +277,103 @@ export default async function Home() {
         </section>
 
         <section
-          id="how"
-          className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
+          id="workflows"
+          className="border-y border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_55%,transparent)]"
         >
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="kicker text-[var(--color-accent)]">How it works</p>
+          <div className="mx-auto grid max-w-6xl gap-10 px-5 py-16 sm:px-6 sm:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div>
+              <p className="kicker text-[var(--color-accent)]">Workflows</p>
+              <h2 className="display mt-3 text-3xl sm:text-4xl">
+                Built for repeated daily execution.
+              </h2>
+              <p className="mt-4 text-[14px] leading-7 text-[var(--color-text-muted)]">
+                The interface stays dense and operational: inbox, thread,
+                calendar, drafts, and commitments are always close together.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {workflows.map((workflow, index) => (
+                <div
+                  key={workflow.title}
+                  className="grid gap-4 rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:grid-cols-[auto_1fr] sm:p-6"
+                >
+                  <span className="font-mono text-[12px] tracking-[0.1em] text-[var(--color-text-soft)]">
+                    0{index + 1}
+                  </span>
+                  <div>
+                    <p className="text-[15px] font-medium text-[var(--color-text)]">
+                      {workflow.title}
+                    </p>
+                    <p className="mt-2 text-[13px] leading-6 text-[var(--color-text-muted)]">
+                      {workflow.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="security"
+          className="mx-auto grid max-w-6xl gap-8 px-5 py-16 sm:px-6 sm:py-24 lg:grid-cols-2 lg:items-center"
+        >
+          <div>
+            <p className="kicker text-[var(--color-accent)]">Access</p>
             <h2 className="display mt-3 text-3xl sm:text-4xl">
-              Ask once. KODA does the rest.
+              Google permissions once, then normal login after that.
             </h2>
+            <p className="mt-4 text-[14px] leading-7 text-[var(--color-text-muted)]">
+              First-time users approve Gmail and Calendar scopes. Returning
+              users sign in with the existing Google grant instead of seeing the
+              permission screen again.
+            </p>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:mt-12 sm:grid-cols-3">
-            {steps.map((step, index) => (
-              <div
-                key={step.title}
-                className="relative rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-5 sm:p-6"
-              >
-                <span className="font-mono text-[12px] tracking-[0.1em] text-[var(--color-text-soft)]">
-                  0{index + 1}
-                </span>
-                <p className="mt-3 text-[15px] font-medium text-[var(--color-text)]">
-                  {step.title}
-                </p>
-                <p className="mt-2 text-[13px] leading-6 text-[var(--color-text-muted)]">
-                  {step.body}
-                </p>
-              </div>
-            ))}
+          <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+                <Icon name="shield" />
+              </span>
+              <p className="text-[15px] font-medium text-[var(--color-text)]">
+                Scoped Google access
+              </p>
+            </div>
+            <div className="mt-5 space-y-3">
+              {security.map((item) => (
+                <div key={item} className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+                  <p className="text-[13px] leading-6 text-[var(--color-text-muted)]">
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="use-cases"
+          className="border-y border-[var(--color-line)] bg-[color-mix(in_oklab,var(--color-surface-2)_55%,transparent)]"
+        >
+          <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
+            <div className="max-w-2xl">
+              <p className="kicker text-[var(--color-accent)]">Use cases</p>
+              <h2 className="display mt-3 text-3xl sm:text-4xl">
+                For people who cannot afford to lose the next action.
+              </h2>
+            </div>
+            <div className="mt-10 grid gap-3 sm:grid-cols-2">
+              {useCases.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5 text-[14px] leading-7 text-[var(--color-text-muted)]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -478,7 +385,7 @@ export default async function Home() {
             </h2>
             <p className="mx-auto mt-4 max-w-md text-[14px] leading-7 text-[var(--color-text-muted)]">
               {session
-                ? "Jump back into KODA, draft a reply, book or move a meeting, or just ask what you're waiting on."
+                ? "Jump back into KODA, draft a reply, book or move a meeting, or ask what you're waiting on."
                 : "Connect Google and run your mail and calendar from one command, by keyboard or by voice."}
             </p>
             <div className="mt-7 flex flex-col items-center justify-center gap-2.5 sm:flex-row">

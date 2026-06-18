@@ -61,9 +61,8 @@ export const auth = betterAuth({
     google: {
       clientId: env.BETTER_AUTH_GOOGLE_CLIENT_ID!,
       clientSecret: env.BETTER_AUTH_GOOGLE_CLIENT_SECRET!,
-      // Google may omit refresh_token on returning sign-ins unless consent is forced.
       accessType: "offline",
-      prompt: "select_account consent",
+      prompt: "select_account",
       scope: [
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",

@@ -8,8 +8,8 @@ import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how" },
-  { label: "Workspace", href: "/inbox" },
+  { label: "Workflows", href: "#workflows" },
+  { label: "Access", href: "#security" },
 ] as const;
 
 export function LandingNav() {
