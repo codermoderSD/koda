@@ -468,7 +468,7 @@ export function CalendarView({
       setRescheduleSlots(payload.slots);
       setRescheduleStatus(
         payload.slots.length > 0
-          ? "Pick a new time — attendees get the update."
+          ? "Pick a new time, attendees get the update."
           : "No free slots in the next two weeks.",
       );
     } catch (error) {

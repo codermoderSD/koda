@@ -49,7 +49,7 @@ export const auth = betterAuth({
     schema,
   }),
   // Seed the Corsair tenant with the user's Google tokens the moment they are
-  // written at the OAuth callback — before any page renders. Single sign-in.
+  // written at the OAuth callback, before any page renders. Single sign-in.
   databaseHooks: {
     account: {
       create: { after: seedTenant },

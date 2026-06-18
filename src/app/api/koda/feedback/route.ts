@@ -20,7 +20,10 @@ const TOPICS: Record<"credits" | "product" | "feedback", string> = {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session?.user?.email) {
-    return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
+    return NextResponse.json(
+      { error: "You must be signed in." },
+      { status: 401 },
+    );
   }
 
   try {
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     const userName = session.user.name ?? userEmail;
     const topic = TOPICS[input.kind];
 
-    const subject = `KODA — ${topic} from ${userName}`;
+    const subject = `KODA, ${topic} from ${userName}`;
     const body = [
       `Topic: ${topic}`,
       `From: ${userName} <${userEmail}>`,
@@ -46,7 +49,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Could not send your message.",
+          error instanceof Error
+            ? error.message
+            : "Could not send your message.",
       },
       { status: 400 },
     );

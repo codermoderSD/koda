@@ -62,7 +62,7 @@ export default async function ProfilePage() {
         <div className="mt-4 flex items-center gap-2 border-t border-[var(--color-line)] pt-4 text-[12px] text-[var(--color-text-soft)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
           <span className="font-mono tracking-[0.04em]">
-            Gmail &amp; Calendar connected via Corsair
+            Gmail &amp; Calendar connected
           </span>
         </div>
       </section>

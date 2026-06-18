@@ -28,7 +28,7 @@ const scopes = [
   {
     icon: "shield",
     title: "Private by design",
-    body: "Google OAuth only — KODA never stores a password.",
+    body: "Google OAuth only, KODA never stores a password.",
   },
 ] as const;
 
@@ -82,13 +82,13 @@ export default async function LoginPage() {
         <div className="w-full max-w-sm">
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-1 font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-muted)] backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-            Gmail + Calendar · via Corsair
+            Gmail + Calendar
           </span>
           <h1 className="display mt-5 text-2xl sm:text-[1.75rem]">
             Sign in and your inbox starts working.
           </h1>
           <p className="mt-3 text-[14px] leading-7 text-[var(--color-text-muted)]">
-            One Google connection and KODA opens straight into the workspace —
+            One Google connection and KODA opens straight into the workspace,
             tracking promises, deadlines, and follow-ups across mail and
             calendar.
           </p>

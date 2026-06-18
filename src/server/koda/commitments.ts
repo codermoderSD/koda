@@ -130,7 +130,7 @@ export async function listCommitments(limit = 80): Promise<KodaCommitment[]> {
   return rows.map(mapCommitmentRow);
 }
 
-/** Mark a commitment done — keeps the row but drops it from the active lanes. */
+/** Mark a commitment done, keeps the row but drops it from the active lanes. */
 export async function resolveCommitment(id: string): Promise<void> {
   await db
     .update(commitments)

@@ -2026,7 +2026,7 @@ export function WorkspaceConsole({
         />
       )}
 
-      {/* Mail detail — only mounts when a thread is selected */}
+      {/* Mail detail, only mounts when a thread is selected */}
       {active && (
         <section className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:flex-1">
           <PaneHeader title="Thread">
@@ -2569,7 +2569,7 @@ export function WorkspaceConsole({
             </div>
           </div>
 
-          {/* Week navigation — bottom of calendar pane */}
+          {/* Week navigation, bottom of calendar pane */}
           <div className="flex items-center justify-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
             <button
               type="button"

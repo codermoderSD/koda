@@ -23,7 +23,7 @@ export const inboxThreads = [
   },
   {
     from: "Northwind Legal",
-    subject: "MSA revision — redlines",
+    subject: "MSA revision, redlines",
     preview: "We'll share the updated redlines by end of day.",
     priority: "WAITING ON",
     time: "8:15 AM",
@@ -42,7 +42,7 @@ export const inboxThreads = [
     preview: "Can we lock 9 AM and send the invite today?",
     priority: "NEEDS REPLY",
     time: "Yesterday",
-    body: "Hey — great chatting earlier. Can we lock 9 AM Thursday for coffee and send the invite today? Happy to come to your side of town.\n\nRohan",
+    body: "Hey, great chatting earlier. Can we lock 9 AM Thursday for coffee and send the invite today? Happy to come to your side of town.\n\nRohan",
     commitment: {
       title: "Create Thursday 9 AM coffee invite for Rohan.",
       owner: "You",
@@ -54,7 +54,7 @@ export const inboxThreads = [
   {
     from: "Acme Procurement",
     subject: "Renewal terms for FY26",
-    preview: "Sharing the signed order form — let us know next steps.",
+    preview: "Sharing the signed order form, let us know next steps.",
     priority: "OPEN",
     time: "Tue",
     body: "Hello,\n\nSharing the signed order form for the FY26 renewal. Let us know the next steps and timeline for countersignature.\n\nAcme Procurement",
@@ -69,7 +69,7 @@ export const inboxThreads = [
   {
     from: "Dana Olsen",
     subject: "Intro: partnerships at Vela",
-    preview: "Happy to connect you — are you free next week?",
+    preview: "Happy to connect you, are you free next week?",
     priority: "NEEDS REPLY",
     time: "Mon",
     body: "Hi Shubham,\n\nHappy to make the intro to the partnerships team at Vela. Are you free for 30 minutes next week? I can loop them in once you send a couple of windows.\n\nDana",
@@ -122,9 +122,9 @@ export const commitmentColumns = {
 
 export const calendarEvents = [
   { day: 0, start: 9, end: 10, title: "Pipeline review", tone: "neutral" },
-  { day: 0, start: 14, end: 15, title: "1:1 — Dana", tone: "neutral" },
+  { day: 0, start: 14, end: 15, title: "1:1, Dana", tone: "neutral" },
   { day: 2, start: 11, end: 12, title: "Northwind follow-up", tone: "warning" },
-  { day: 3, start: 9, end: 11, title: "Coffee chat — Rohan", tone: "accent" },
+  { day: 3, start: 9, end: 11, title: "Coffee chat, Rohan", tone: "accent" },
   { day: 3, start: 15, end: 16, title: "Q3 review prep", tone: "accent" },
   { day: 4, start: 13, end: 14, title: "Board deck send", tone: "success" },
 ] as const;
@@ -136,9 +136,9 @@ export const calendarDeadlines = [
 ] as const;
 
 export const agendaItems = [
-  { time: "Thu · 9:00 AM", label: "Coffee chat — Rohan Mehta", tone: "accent" },
+  { time: "Thu · 9:00 AM", label: "Coffee chat, Rohan Mehta", tone: "accent" },
   { time: "Fri · 1:00 PM", label: "Send board deck", tone: "success" },
-  { time: "Fri · 2:00 PM", label: "Follow up — Northwind MSA", tone: "warning" },
+  { time: "Fri · 2:00 PM", label: "Follow up, Northwind MSA", tone: "warning" },
 ] as const;
 
 export const agentMessages = [

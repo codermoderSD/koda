@@ -1613,7 +1613,7 @@ export async function POST(request: Request) {
     // Daily per-user AI request quota. Only successful requests are charged.
     const quota = await getAiQuota(session.user.id);
     if (quota.remaining <= 0) {
-      const message = `Daily limit reached — you've used all ${quota.limit} KODA requests for today. Try again tomorrow.`;
+      const message = `Daily limit reached, you've used all ${quota.limit} KODA requests for today. Try again tomorrow.`;
       return NextResponse.json(
         {
           status: "error",
@@ -1771,9 +1771,7 @@ export async function POST(request: Request) {
     const raw = error instanceof Error ? error.message : String(error);
     console.error("[koda/chat] error:", raw, error);
     const message =
-      process.env.NODE_ENV === "development"
-        ? raw
-        : friendlyChatError(raw);
+      process.env.NODE_ENV === "development" ? raw : friendlyChatError(raw);
     return NextResponse.json(
       {
         status: "error",

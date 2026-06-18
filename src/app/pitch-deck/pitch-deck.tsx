@@ -81,7 +81,7 @@ const slides: Slide[] = [
       { t: " and " },
       { t: "calendar", hl: true },
     ],
-    sub: "Gmail and Google Calendar behind one command — and one voice. See your mail and schedule together, then draft, send, and book in realtime.",
+    sub: "Gmail and Google Calendar behind one command, and one voice. See your mail and schedule together, then draft, send, and book in realtime.",
     presenter: "Shubham Dalvi",
     illustration: "online-meetings",
   },
@@ -94,7 +94,7 @@ const slides: Slide[] = [
       { t: " and your " },
       { t: "calendar", hl: true },
     ],
-    sub: "Every meeting starts in a thread and ends on a calendar — so you live in two tabs, copying context back and forth.",
+    sub: "Every meeting starts in a thread and ends on a calendar, so you live in two tabs, copying context back and forth.",
   },
   {
     layout: "flow",
@@ -134,7 +134,7 @@ const slides: Slide[] = [
       { t: "act", hl: true },
       { t: ", not just autocomplete" },
     ],
-    sub: "A model can now read a thread, check a calendar, draft the reply, and book the meeting — if something wires it to your real data.",
+    sub: "A model can now read a thread, check a calendar, draft the reply, and book the meeting, if something wires it to your real data.",
   },
   {
     layout: "statement",
@@ -143,7 +143,7 @@ const slides: Slide[] = [
       { t: "koda puts mail and calendar behind " },
       { t: "one command", hl: true },
     ],
-    sub: "See both in one workspace. Ask in plain language — or just speak — and KODA drafts, schedules, reschedules, and sends in realtime.",
+    sub: "See both in one workspace. Ask in plain language, or just speak, and KODA drafts, schedules, reschedules, and sends in realtime.",
   },
   {
     layout: "flow",
@@ -164,7 +164,7 @@ const slides: Slide[] = [
     items: [
       {
         title: "one command",
-        body: "Search, draft, send, schedule, reschedule — across mail and calendar from ⌘K.",
+        body: "Search, draft, send, schedule, reschedule, across mail and calendar from ⌘K.",
       },
       {
         title: "voice control",
@@ -172,7 +172,7 @@ const slides: Slide[] = [
       },
       {
         title: "draft & reply",
-        body: "Ask KODA to write the reminder or reply — it composes and sends for you.",
+        body: "Ask KODA to write the reminder or reply, it composes and sends for you.",
       },
       {
         title: "schedule in place",
@@ -224,7 +224,7 @@ const slides: Slide[] = [
       },
       {
         title: "@alias shortcuts",
-        body: "Name contacts once. Type @cto in compose — KODA resolves it.",
+        body: "Name contacts once. Type @cto in compose, KODA resolves it.",
       },
     ],
     footnote: [
@@ -287,10 +287,7 @@ const slides: Slide[] = [
   {
     layout: "circles",
     kicker: "What's coming",
-    headline: [
-      { t: "from one inbox to " },
-      { t: "team execution", hl: true },
-    ],
+    headline: [{ t: "from one inbox to " }, { t: "team execution", hl: true }],
     items: [
       { title: "team availability", body: "Free slots across all attendees" },
       { title: "one-click schedule", body: "Book straight from an email" },

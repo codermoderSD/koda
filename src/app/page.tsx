@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "KODA | The execution layer for email and calendar",
   description:
-    "Gmail and Google Calendar behind one command. Ask in plain language or by voice — KODA drafts replies, books and reschedules meetings, and tracks commitments in realtime.",
+    "Gmail and Google Calendar behind one command. Ask in plain language or by voice, KODA drafts replies, books and reschedules meetings, and tracks commitments in realtime.",
 };
 
 type IconName = "agent" | "voice" | "inbox" | "calendar" | "alias";
@@ -65,12 +65,12 @@ const capabilities: Array<{ icon: IconName; title: string; body: string }> = [
   {
     icon: "agent",
     title: "One command for everything",
-    body: "Search, draft, send, schedule, and reschedule across Gmail and Calendar — from a single ⌘K command bar.",
+    body: "Search, draft, send, schedule, and reschedule across Gmail and Calendar, from a single ⌘K command bar.",
   },
   {
     icon: "voice",
     title: "Voice control",
-    body: "Hold ⌘⇧K and talk. KODA types, books, and sends — hands-free, no keyboard.",
+    body: "Hold ⌘⇧K and talk. KODA types, books, and sends, hands-free, no keyboard.",
   },
   {
     icon: "inbox",
@@ -85,7 +85,7 @@ const capabilities: Array<{ icon: IconName; title: string; body: string }> = [
   {
     icon: "alias",
     title: "@alias shortcuts",
-    body: "Name your frequent contacts. Type @cto in compose and KODA resolves it to the real address — no copy-pasting.",
+    body: "Name your frequent contacts. Type @cto in compose and KODA resolves it to the real address, no copy-pasting.",
   },
 ];
 
@@ -95,12 +95,12 @@ const steps = [
     body: "Authorize Gmail and Calendar once. KODA syncs your mail and schedule into one workspace.",
   },
   {
-    title: "Ask in a line — or speak",
+    title: "Ask in a line, or speak",
     body: "Type or say what you want: find a thread, draft a reply, book a meeting, or move one.",
   },
   {
     title: "KODA acts in realtime",
-    body: "It reads mail and calendar, drafts, schedules, and sends — then tracks what you're owed.",
+    body: "It reads mail and calendar, drafts, schedules, and sends, then tracks what you're owed.",
   },
 ];
 
@@ -123,7 +123,7 @@ export default async function Home() {
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center">
             <span className="rise inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-1 font-mono text-[11px] tracking-[0.08em] text-[var(--color-text-muted)] backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-              Gmail + Calendar · via Corsair
+              Gmail + Calendar
             </span>
 
             <h1 className="rise display mt-6 max-w-3xl text-[2.5rem] leading-[1.05] sm:text-6xl">
@@ -133,7 +133,7 @@ export default async function Home() {
 
             <p className="rise mt-5 max-w-xl text-[15px] leading-7 text-[var(--color-text-muted)] sm:text-base">
               Your mail and your schedule, behind one command. Ask in plain
-              language — or just speak — and KODA drafts replies, books meetings,
+              language, or just speak, and KODA drafts replies, books meetings,
               and reschedules in realtime. No more bouncing between two tabs.
             </p>
 
@@ -147,7 +147,7 @@ export default async function Home() {
             </div>
 
             <p className="rise mt-6 font-mono text-[11px] tracking-[0.1em] text-[var(--color-text-soft)] uppercase">
-              Self-hosted Corsair · tenant-scoped · no passwords stored
+              tenant-scoped · no passwords stored
             </p>
 
             {/* Product preview */}
@@ -252,7 +252,7 @@ export default async function Home() {
                         Thread
                       </span>
                       <span className="font-mono text-[12px] text-[var(--color-text-soft)]">
-                        —
+                        ,
                       </span>
                     </div>
                     <div className="px-4 py-3.5">
@@ -323,7 +323,7 @@ export default async function Home() {
                           <span className="kicker">Reply</span>
                         </div>
                         <p className="mt-2.5 text-[13px] leading-6 text-[var(--color-text)]">
-                          Happy to walk you through the Blind 75 — I&apos;ve
+                          Happy to walk you through the Blind 75, I&apos;ve
                           scheduled 30 minutes and sent an invite.
                         </p>
                       </div>
@@ -486,8 +486,8 @@ export default async function Home() {
             </h2>
             <p className="mx-auto mt-4 max-w-md text-[14px] leading-7 text-[var(--color-text-muted)]">
               {session
-                ? "Jump back into KODA — draft a reply, book or move a meeting, or just ask what you're waiting on."
-                : "Connect Google and run your mail and calendar from one command — by keyboard or by voice."}
+                ? "Jump back into KODA, draft a reply, book or move a meeting, or just ask what you're waiting on."
+                : "Connect Google and run your mail and calendar from one command, by keyboard or by voice."}
             </p>
             <div className="mt-7 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
               <Link
@@ -505,7 +505,6 @@ export default async function Home() {
         <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--color-line)] py-6 text-[12px] text-[var(--color-text-soft)] sm:flex-row">
           <span className="font-mono">KODA · execution layer</span>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <span>Self-hosted Corsair · tenant-scoped</span>
             <Link
               href="/privacy"
               className="transition hover:text-[var(--color-text)]"

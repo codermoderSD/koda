@@ -37,7 +37,7 @@ type ChatTurn =
 
 // Vertical blur dome above the input: taller than wide so it disperses in a
 // soft circle (more vertical, less horizontal) and stays symmetric on both
-// sides — strongest at the input, fading round toward the top and edges.
+// sides, strongest at the input, fading round toward the top and edges.
 const BLUR_MASK =
   "radial-gradient(76% 100% at 50% 100%, #000 32%, rgba(0,0,0,0.55) 60%, transparent 80%)";
 // Conversation fades only near the very top so the first message stays readable.
@@ -203,7 +203,7 @@ export function CommandBar() {
       }
       if (e.key === "Escape") {
         // If the mic is recording, Esc stops the mic only (handled by the
-        // dictation button) — don't also close the chat.
+        // dictation button), don't also close the chat.
         if (micListeningRef.current) return;
         inputRef.current?.blur();
         setFocused(false);
@@ -535,7 +535,7 @@ export function CommandBar() {
       className="fixed inset-x-0 bottom-[57px] z-30 lg:bottom-0 lg:left-[256px]"
     >
       <div className="relative mx-auto max-w-3xl px-3 pb-3 sm:px-4">
-        {/* Vertical blur dome above the input — symmetric, circular dispersion. */}
+        {/* Vertical blur dome above the input, symmetric, circular dispersion. */}
         {open && (
           <div
             aria-hidden
@@ -544,7 +544,7 @@ export function CommandBar() {
           />
         )}
 
-        {/* Conversation — newest by the input, older turns fade out at top. */}
+        {/* Conversation, newest by the input, older turns fade out at top. */}
         {open && hasHistory && (
           <div
             className="absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-1 sm:inset-x-4"

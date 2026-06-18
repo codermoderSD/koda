@@ -51,7 +51,7 @@ export function AiCredits({ initial }: { initial: Quota }) {
       <p className="mt-1.5 text-[10px] text-[var(--color-text-soft)]">
         {quota.remaining > 0
           ? `${quota.remaining} left today`
-          : "Limit reached — resets tomorrow"}
+          : "Limit reached, resets tomorrow"}
       </p>
     </div>
   );

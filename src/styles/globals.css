@@ -8,12 +8,12 @@
   --font-mono:
     var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Radii — restrained, operator-grade. No bubble cards. */
+  /* Radii, restrained, operator-grade. No bubble cards. */
   --radius-sm: 4px;
   --radius: 7px;
   --radius-lg: 10px;
 
-  /* Dark theme (primary) — near-black with cool undertone. */
+  /* Dark theme (primary), near-black with cool undertone. */
   --color-line: rgb(255 255 255 / 0.07);
   --color-line-strong: rgb(255 255 255 / 0.12);
   --color-surface: #0a0b0d;
@@ -52,7 +52,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Global film grain — subtle texture across every surface. */
+/* Global film grain, subtle texture across every surface. */
 body::after {
   content: "";
   position: fixed;
@@ -120,7 +120,7 @@ button {
 
 /* ── Marketing surface: depth without leaving the operator-grade identity ── */
 
-/* Aurora glow backdrop — sits behind the hero, fixed, pointer-transparent. */
+/* Aurora glow backdrop, sits behind the hero, fixed, pointer-transparent. */
 .aurora {
   position: absolute;
   inset: 0;
@@ -192,7 +192,7 @@ button {
   );
 }
 
-/* Display heading — large, tight, gradient-inked. */
+/* Display heading, large, tight, gradient-inked. */
 .display {
   font-weight: 500;
   letter-spacing: -0.03em;
@@ -207,7 +207,7 @@ button {
   color: transparent;
 }
 
-/* Glass panel — elevated card with subtle inner light. */
+/* Glass panel, elevated card with subtle inner light. */
 .glass {
   background: color-mix(in oklab, var(--color-surface-2) 82%, transparent);
   backdrop-filter: blur(12px);
@@ -256,7 +256,7 @@ button {
 .float {
   animation: koda-float 7s ease-in-out infinite;
 }
-/* Popup / output entrance — quick spring-in. */
+/* Popup / output entrance, quick spring-in. */
 @keyframes koda-pop {
   from {
     opacity: 0;
@@ -422,7 +422,7 @@ button {
   }
 }
 
-/* Operator label — tiny, tracked, mono. The signature metadata style. */
+/* Operator label, tiny, tracked, mono. The signature metadata style. */
 .kicker {
   font-family: var(--font-mono);
   font-size: 10px;

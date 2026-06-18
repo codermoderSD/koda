@@ -94,9 +94,7 @@ async function ensureAccountRow(
     )
     .limit(1);
   if (!created) {
-    throw new Error(
-      `Failed to create Corsair account for ${tenantId}/${name}`,
-    );
+    throw new Error(`Failed to create Corsair account for ${tenantId}/${name}`);
   }
   return created;
 }
@@ -111,7 +109,7 @@ async function ensureIntegrationCredentials() {
   const clientSecret = env.BETTER_AUTH_GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     console.warn(
-      "[koda/connect] BETTER_AUTH_GOOGLE_CLIENT_ID/SECRET missing — Corsair " +
+      "[koda/connect] BETTER_AUTH_GOOGLE_CLIENT_ID/SECRET missing, Corsair " +
         "cannot refresh Google tokens; check .env",
     );
     return;
@@ -144,7 +142,7 @@ async function ensureIntegrationCredentials() {
 /**
  * Seeds the current user's Google tokens into a tenant-scoped Corsair account so
  * Gmail/Calendar reads work for them. Single OAuth: the tokens come from the
- * login consent — no second authorization screen. The tenant account (+ its
+ * login consent, no second authorization screen. The tenant account (+ its
  * encryption DEK) is created on demand before any key is written.
  *
  * Returns "connected" once the tenant has a usable refresh token, otherwise
@@ -153,7 +151,7 @@ async function ensureIntegrationCredentials() {
 export async function ensureCorsairConnection(
   userId: string,
 ): Promise<ConnectionState> {
-  // Already seeded — cheap short-circuit on every workspace load. Check both
+  // Already seeded, cheap short-circuit on every workspace load. Check both
   // plugins; older sessions may have Gmail seeded while Calendar is still empty.
   try {
     const client = corsair.withTenant(userId);
@@ -195,7 +193,7 @@ export async function ensureCorsairConnection(
   for (const { name, keys } of managers) {
     try {
       // Corsair rejects key writes until the (tenant, integration) account row
-      // exists with a DEK — create it first if this is the user's first sync.
+      // exists with a DEK, create it first if this is the user's first sync.
       await ensureAccountRow(name, userId);
       if (!(await dekExists(() => keys.get_dek()))) {
         await keys.issue_new_dek();
