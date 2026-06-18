@@ -5,14 +5,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "~/server/db";
 import { aiUsage } from "~/server/db/schema";
 
-/** Daily AI request budget per user. */
 export const DAILY_AI_LIMIT = 20;
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+  return new Date().toISOString().slice(0, 10);
 }
 
-/** Read today's usage without consuming any quota. */
 export async function getAiQuota(
   userId: string,
 ): Promise<{ used: number; remaining: number; limit: number }> {
@@ -34,10 +32,6 @@ export async function getAiQuota(
   }
 }
 
-/**
- * Count one successful AI request against today's quota. Callers should check
- * quota before doing expensive work and only call this after a non-error result.
- */
 export async function consumeAiQuota(
   userId: string,
 ): Promise<{ allowed: boolean; remaining: number; limit: number }> {
@@ -64,7 +58,6 @@ export async function consumeAiQuota(
       limit: DAILY_AI_LIMIT,
     };
   } catch {
-    // If the table isn't migrated yet, fail open rather than block the user.
     return { allowed: true, remaining: DAILY_AI_LIMIT, limit: DAILY_AI_LIMIT };
   }
 }

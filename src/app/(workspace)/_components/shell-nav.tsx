@@ -11,7 +11,6 @@ export function ShellNav() {
   return (
     <nav className="space-y-0.5">
       {workspaceNav.map((item) => {
-        // Match the section root and any sub-route, e.g. /inbox/{threadId}.
         const active =
           pathname === item.href || pathname?.startsWith(`${item.href}/`);
 

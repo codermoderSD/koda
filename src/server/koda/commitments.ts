@@ -130,7 +130,6 @@ export async function listCommitments(limit = 80): Promise<KodaCommitment[]> {
   return rows.map(mapCommitmentRow);
 }
 
-/** Mark a commitment done, keeps the row but drops it from the active lanes. */
 export async function resolveCommitment(id: string): Promise<void> {
   await db
     .update(commitments)
@@ -138,7 +137,6 @@ export async function resolveCommitment(id: string): Promise<void> {
     .where(eq(commitments.id, id));
 }
 
-/** Permanently remove a single commitment. */
 export async function deleteCommitment(id: string): Promise<void> {
   await db.delete(commitments).where(eq(commitments.id, id));
 }
@@ -175,17 +173,12 @@ export async function createDraftCommitment(input: {
   });
 }
 
-/**
- * Remove resolved/expired commitments older than `retentionDays`, and mark
- * still-active ones past that age as expired. Runs on each commitments load.
- */
 export async function purgeExpiredCommitments(
   retentionDays = 7,
 ): Promise<void> {
   const days = Number.isFinite(retentionDays) ? Math.max(1, retentionDays) : 7;
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   try {
-    // Done/expired items past the window are deleted outright.
     await db
       .delete(commitments)
       .where(
@@ -194,7 +187,6 @@ export async function purgeExpiredCommitments(
           lt(commitments.createdAt, cutoff),
         ),
       );
-    // Active items past the window expire (still visible, flagged expired).
     await db
       .update(commitments)
       .set({ status: "expired" })
@@ -204,8 +196,8 @@ export async function purgeExpiredCommitments(
           lt(commitments.createdAt, cutoff),
         ),
       );
-  } catch {
-    // Tolerate a not-yet-migrated DB.
+  } catch (error) {
+    void error;
   }
 }
 

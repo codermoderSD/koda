@@ -16,7 +16,6 @@ type IllustrationName =
   | "tech-keynote"
   | "to-do-app";
 
-/** A headline is a list of segments; `hl` paints the segment in the accent. */
 type Seg = { t: string; hl?: boolean };
 
 type Item = { title: string; body?: string };
@@ -351,7 +350,6 @@ function clampSlide(index: number) {
   return Math.max(0, Math.min(slides.length - 1, index));
 }
 
-/** Mixed-weight headline: accent segments inherit the accent color. */
 function Headline({
   parts,
   className = "",
@@ -398,7 +396,6 @@ export function PitchDeck() {
   const previous = useCallback(() => setActive((i) => clampSlide(i - 1)), []);
   const next = useCallback(() => setActive((i) => clampSlide(i + 1)), []);
 
-  // Deep-link each slide via the URL hash (#3 → slide 3). Shareable + resumable.
   useEffect(() => {
     const fromHash = Number(window.location.hash.replace("#", ""));
     if (Number.isFinite(fromHash) && fromHash >= 1)
@@ -439,7 +436,6 @@ export function PitchDeck() {
       <div className="aurora" aria-hidden />
       <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
 
-      {/* hairline progress */}
       <div className="absolute inset-x-0 top-0 h-px bg-[var(--color-line)]">
         <div
           className="h-px bg-[var(--color-accent)] transition-all duration-500"
@@ -447,7 +443,6 @@ export function PitchDeck() {
         />
       </div>
 
-      {/* top chrome: kicker / logo + nav */}
       <header className="flex items-start justify-between gap-4">
         {isTitle ? (
           <KodaLogo markClassName="h-8 w-8" />
@@ -484,7 +479,6 @@ export function PitchDeck() {
         </div>
       </header>
 
-      {/* stage */}
       <section className="flex flex-1 items-center py-10">
         <div key={active} className="pop w-full">
           {slide.layout === "title" && <TitleSlide slide={slide} />}
@@ -497,7 +491,6 @@ export function PitchDeck() {
         </div>
       </section>
 
-      {/* bottom chrome: domain + theme + page */}
       <footer className="flex items-end justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="font-mono text-[12px] tracking-[0.04em] text-[var(--color-text-soft)]">
@@ -513,8 +506,6 @@ export function PitchDeck() {
     </main>
   );
 }
-
-/* ───────────────────────── layouts ───────────────────────── */
 
 function TitleSlide({ slide }: { slide: Extract<Slide, { layout: "title" }> }) {
   return (
@@ -713,8 +704,6 @@ function ClosingSlide({
     </div>
   );
 }
-
-/* ───────────────────────── primitives ───────────────────────── */
 
 function FlatIllustration({ name }: { name: IllustrationName }) {
   const asset = illustrationAssets[name];

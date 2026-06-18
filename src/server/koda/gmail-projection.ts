@@ -98,7 +98,8 @@ function normalizeDate(
   value: GmailMessage["internalDate"],
 ): Date | null | undefined {
   if (value == null) return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? null : value;
 
   const numericValue =
     typeof value === "number"

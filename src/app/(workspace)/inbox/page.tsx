@@ -11,7 +11,10 @@ type PageProps = {
 };
 
 function parseTab(value: string | undefined) {
-  return value === "search" || value === "all" || value === "focused" || value === "drafts"
+  return value === "search" ||
+    value === "all" ||
+    value === "focused" ||
+    value === "drafts"
     ? value
     : undefined;
 }

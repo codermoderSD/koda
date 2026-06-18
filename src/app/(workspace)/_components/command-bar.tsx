@@ -30,17 +30,12 @@ type ChatResponse = {
   error?: string;
 };
 
-/** One turn in the ephemeral, in-memory conversation (never persisted). */
 type ChatTurn =
   | { role: "user"; text: string }
   | { role: "assistant"; response: ChatResponse };
 
-// Vertical blur dome above the input: taller than wide so it disperses in a
-// soft circle (more vertical, less horizontal) and stays symmetric on both
-// sides, strongest at the input, fading round toward the top and edges.
 const BLUR_MASK =
   "radial-gradient(76% 100% at 50% 100%, #000 32%, rgba(0,0,0,0.55) 60%, transparent 80%)";
-// Conversation fades only near the very top so the first message stays readable.
 const FADE_MASK = "linear-gradient(to top, #000 84%, transparent 100%)";
 
 type ThreadSummary = {
@@ -148,12 +143,9 @@ export function CommandBar() {
   const panelRef = useRef<HTMLDivElement>(null);
   const micListeningRef = useRef(false);
 
-  // The overlay (blurred backdrop + history panel) is open while the input is
-  // focused or there is conversation to show.
   const hasHistory = messages.length > 0;
   const open = focused || hasHistory;
 
-  // Inline follow-up input comes from the most recent assistant turn.
   const lastAssistantResponse =
     [...messages].reverse().find((turn) => turn.role === "assistant")
       ?.response ?? null;
@@ -168,7 +160,6 @@ export function CommandBar() {
   const appendAssistant = (response: ChatResponse) =>
     setMessages((turns) => [...turns, { role: "assistant", response }]);
   const clearConversation = () => {
-    console.log("Clearing conversation context");
     setMessages([]);
     setQuery("");
     setAliasSuggestions([]);
@@ -195,15 +186,12 @@ export function CommandBar() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (e.shiftKey) {
-          // ⌘⇧K → toggle voice input.
           window.dispatchEvent(new Event("koda:mic-toggle"));
         } else {
           inputRef.current?.focus();
         }
       }
       if (e.key === "Escape") {
-        // If the mic is recording, Esc stops the mic only (handled by the
-        // dictation button), don't also close the chat.
         if (micListeningRef.current) return;
         inputRef.current?.blur();
         setFocused(false);
@@ -254,13 +242,9 @@ export function CommandBar() {
       .then((data: { aliases?: EmailAlias[] }) =>
         setAliases(data.aliases ?? []),
       )
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      .catch((e) => {
-        console.log("Failed to load aliases", e);
-      });
+      .catch(() => undefined);
   }, [open]);
 
-  // Keep the latest turn in view as the conversation grows.
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
@@ -317,12 +301,8 @@ export function CommandBar() {
     const rawMessage = (messageOverride ?? query).trim();
     if (!rawMessage) return;
 
-    // Resolve @alias handles → real email addresses before sending to AI.
-    // The display text keeps @alias so the user sees what they typed.
     const apiMessage = resolveAliasHandles(rawMessage, aliases);
 
-    // Prior turns become context for this request. Built before appending the
-    // new user turn so the current message isn't duplicated server-side.
     const history = messages
       .map((turn) =>
         turn.role === "user"
@@ -481,8 +461,8 @@ export function CommandBar() {
         method: "DELETE",
       });
       setDrafts((prev) => prev.filter((d) => d.id !== draftId));
-    } catch {
-      // silently ignore
+    } catch (error) {
+      void error;
     } finally {
       setDraftsBusy(false);
     }
@@ -535,7 +515,6 @@ export function CommandBar() {
       className="fixed inset-x-0 bottom-[57px] z-30 lg:bottom-0 lg:left-[256px]"
     >
       <div className="relative mx-auto max-w-3xl px-3 pb-3 sm:px-4">
-        {/* Vertical blur dome above the input, symmetric, circular dispersion. */}
         {open && (
           <div
             aria-hidden
@@ -544,7 +523,6 @@ export function CommandBar() {
           />
         )}
 
-        {/* Conversation, newest by the input, older turns fade out at top. */}
         {open && hasHistory && (
           <div
             className="absolute inset-x-3 bottom-full flex h-[64vh] flex-col justify-end overflow-hidden pb-1 sm:inset-x-4"
@@ -609,7 +587,6 @@ export function CommandBar() {
           </div>
         )}
 
-        {/* Docked input */}
         <div className="relative">
           {aliasSuggestions.length > 0 && (
             <div className="absolute right-0 bottom-full left-0 mb-1.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[color-mix(in_oklab,var(--color-panel-elevated)_97%,transparent)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
@@ -684,8 +661,6 @@ export function CommandBar() {
                 onFocus={() => setFocused(true)}
                 onBlur={(e) => {
                   setFocused(false);
-                  // Leaving the whole panel (not jumping to a button inside it)
-                  // ends the session and resets conversation context.
                   if (!panelRef.current?.contains(e.relatedTarget)) {
                     clearConversation();
                   }
@@ -978,7 +953,6 @@ function KodaComponent({
   );
   const [followUpValue, setFollowUpValue] = useState("");
 
-  // Open results in the inbox, keeping a spinner up until the route resolves.
   function openInInbox(href: string, query: string) {
     window.dispatchEvent(
       new CustomEvent("koda:email-search-results", { detail: { query } }),
@@ -987,7 +961,6 @@ function KodaComponent({
     startNav(() => router.push(href));
   }
 
-  // Close the chat once the inbox navigation has finished loading.
   useEffect(() => {
     if (navigatedRef.current && !navPending) {
       navigatedRef.current = false;

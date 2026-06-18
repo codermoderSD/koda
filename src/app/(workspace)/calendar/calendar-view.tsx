@@ -622,7 +622,6 @@ export function CalendarView({
 
   return (
     <div className="flex w-full flex-col gap-4 lg:h-full lg:min-h-0">
-      {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <h1 className="display text-xl sm:text-2xl">{title}</h1>

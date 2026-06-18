@@ -14,7 +14,6 @@ export default async function CommitmentsPage() {
   const retentionDays = session
     ? (await getUserSettings(session.user.id)).commitmentRetentionDays
     : 7;
-  // Auto-expire / remove stale commitments before listing.
   await purgeExpiredCommitments(retentionDays);
 
   const commitments = await listCommitments();

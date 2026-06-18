@@ -12,7 +12,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const priorityEnum = pgEnum("priority", ["URGENT", "NEEDS_REPLY", "FYI"]);
+export const priorityEnum = pgEnum("priority", [
+  "URGENT",
+  "NEEDS_REPLY",
+  "FYI",
+]);
 export const commitmentTypeEnum = pgEnum("commitment_type", [
   "OUTBOUND",
   "INBOUND",
@@ -130,7 +134,9 @@ export const emails = pgTable("emails", {
 
 export const commitments = pgTable("commitments", {
   id: uuid("id").primaryKey().defaultRandom(),
-  emailId: uuid("email_id").references(() => emails.id, { onDelete: "set null" }),
+  emailId: uuid("email_id").references(() => emails.id, {
+    onDelete: "set null",
+  }),
   threadId: text("thread_id"),
   type: commitmentTypeEnum("type").notNull(),
   actionSummary: text("action_summary").notNull(),
@@ -178,7 +184,6 @@ export const userSettings = pgTable("user_settings", {
   keyboardShortcutsEnabled: boolean("keyboard_shortcuts_enabled")
     .notNull()
     .default(true),
-  // Auto-remove resolved/expired commitments older than this many days.
   commitmentRetentionDays: integer("commitment_retention_days")
     .notNull()
     .default(7),
@@ -252,7 +257,6 @@ export const corsairEvents = pgTable("corsair_events", {
   status: text("status"),
 });
 
-// Short aliases for frequently-emailed contacts (e.g. "@cto" → "cto@acme.com").
 export const emailAliases = pgTable(
   "email_aliases",
   {
@@ -260,20 +264,22 @@ export const emailAliases = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    alias: text("alias").notNull(), // handle without @, e.g. "cto"
+    alias: text("alias").notNull(),
     email: text("email").notNull(),
-    label: text("label"), // optional display name
+    label: text("label"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("email_aliases_user_alias_unique").on(table.userId, table.alias),
+    uniqueIndex("email_aliases_user_alias_unique").on(
+      table.userId,
+      table.alias,
+    ),
     index("email_aliases_user_id_idx").on(table.userId),
   ],
 );
 
-// Per-user, per-day counter for AI requests (daily quota enforcement).
 export const aiUsage = pgTable(
   "ai_usage",
   {
@@ -281,8 +287,10 @@ export const aiUsage = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    day: text("day").notNull(), // YYYY-MM-DD (UTC)
+    day: text("day").notNull(),
     count: integer("count").notNull().default(0),
   },
-  (table) => [uniqueIndex("ai_usage_user_day_unique").on(table.userId, table.day)],
+  (table) => [
+    uniqueIndex("ai_usage_user_day_unique").on(table.userId, table.day),
+  ],
 );

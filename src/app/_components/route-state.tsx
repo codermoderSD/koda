@@ -69,7 +69,6 @@ function skeletonFor(pathname: string | null) {
   return <ListSkeleton rows={4} />;
 }
 
-/* A simple stack of rows: short label + body line. The minimal unit everywhere. */
 function ListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-5">

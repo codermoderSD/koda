@@ -83,14 +83,12 @@ export function DictationButton({
     };
   }, []);
 
-  // Broadcast listening state so the command bar can route Esc to mic-stop.
   useEffect(() => {
     window.dispatchEvent(
       new CustomEvent("koda:mic-state", { detail: { listening } }),
     );
   }, [listening]);
 
-  // Allow a global keyboard shortcut (⌘⇧K) to toggle voice input.
   useEffect(() => {
     function onToggle() {
       if (disabled) return;
@@ -119,7 +117,6 @@ export function DictationButton({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listening, onSubmit]);
 
   function renderText(nextInterim: string) {
@@ -234,10 +231,10 @@ export function DictationButton({
                   : "bg-[var(--color-warning)]"
               }`}
             />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] text-[var(--color-text)]">
-                  {statusText}
-                </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] text-[var(--color-text)]">
+                {statusText}
+              </span>
               {listening && (
                 <span className="mt-0.5 block font-mono text-[9px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase">
                   Esc to stop

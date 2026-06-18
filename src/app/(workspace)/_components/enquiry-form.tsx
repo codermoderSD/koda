@@ -35,7 +35,6 @@ const TABS: Array<{ value: Purpose; label: string }> = [
   { value: "feedback", label: "Feedback" },
 ];
 
-/** Slim sidebar button, opens the shared dialog. */
 export function EnquiryTrigger() {
   return (
     <button
@@ -65,8 +64,6 @@ export function EnquiryTrigger() {
   );
 }
 
-/** Centered modal, rendered once. Opens via the koda:open-enquiry event, and
- *  auto-prompts for feedback after a few AI requests. */
 export function EnquiryDialog() {
   const [open, setOpen] = useState(false);
   const [purpose, setPurpose] = useState<Purpose>("credits");
@@ -84,7 +81,6 @@ export function EnquiryDialog() {
     setOpen(true);
   }, []);
 
-  // Open on demand from anywhere (e.g. the sidebar trigger).
   useEffect(() => {
     function onOpen(event: Event) {
       const detail = (event as CustomEvent<{ purpose?: Purpose }>).detail;
@@ -94,7 +90,6 @@ export function EnquiryDialog() {
     return () => window.removeEventListener("koda:open-enquiry", onOpen);
   }, [openWith]);
 
-  // After a few AI requests, ask for feedback once.
   useEffect(() => {
     function onUsed() {
       try {
@@ -105,8 +100,8 @@ export function EnquiryDialog() {
           localStorage.setItem(FEEDBACK_ASKED_KEY, "1");
           openWith("feedback");
         }
-      } catch {
-        // ignore storage errors
+      } catch (error) {
+        void error;
       }
     }
     window.addEventListener("koda:ai-used", onUsed);

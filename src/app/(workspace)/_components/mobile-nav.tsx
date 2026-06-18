@@ -24,7 +24,9 @@ export function MobileNav() {
           >
             <span
               className={`font-mono text-[10px] ${
-                active ? "text-[var(--color-accent)]" : "text-[var(--color-text-soft)]"
+                active
+                  ? "text-[var(--color-accent)]"
+                  : "text-[var(--color-text-soft)]"
               }`}
             >
               {item.short}

@@ -42,7 +42,6 @@ export async function POST(request: Request) {
       "— Sent from the KODA workspace",
     ].join("\n");
 
-    // Sent from the signed-in user's Gmail so replies go straight back to them.
     await sendEmail({ to: [CONTACT_EMAIL], subject, body });
     return NextResponse.json({ ok: true });
   } catch (error) {

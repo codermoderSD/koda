@@ -41,7 +41,6 @@ export default async function ProfilePage() {
         </p>
       </header>
 
-      {/* Identity */}
       <section className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">

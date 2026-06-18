@@ -11,13 +11,12 @@ export function AiCredits({ initial }: { initial: Quota }) {
     try {
       const res = await fetch("/api/koda/usage", { cache: "no-store" });
       if (res.ok) setQuota((await res.json()) as Quota);
-    } catch {
-      // keep last known value
+    } catch (error) {
+      void error;
     }
   }, []);
 
   useEffect(() => {
-    // Re-read after each AI request the command bar fires.
     const onAiUsed = () => {
       void refresh();
     };

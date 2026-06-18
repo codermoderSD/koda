@@ -38,8 +38,8 @@ async function seedTenant(account: { providerId: string; userId: string }) {
   if (account.providerId !== "google") return;
   try {
     await ensureCorsairConnection(account.userId);
-  } catch {
-    // best-effort; layout re-checks and shows a reconnect prompt if needed
+  } catch (error) {
+    void error;
   }
 }
 
@@ -48,8 +48,6 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
-  // Seed the Corsair tenant with the user's Google tokens the moment they are
-  // written at the OAuth callback, before any page renders. Single sign-in.
   databaseHooks: {
     account: {
       create: { after: seedTenant },
@@ -63,9 +61,7 @@ export const auth = betterAuth({
     google: {
       clientId: env.BETTER_AUTH_GOOGLE_CLIENT_ID!,
       clientSecret: env.BETTER_AUTH_GOOGLE_CLIENT_SECRET!,
-      // KODA cannot use Gmail/Calendar without a refresh token because Corsair
-      // needs offline access. Google may omit refresh_token on silent/returning
-      // auth, so force consent whenever this OAuth flow is used.
+      // Google may omit refresh_token on returning sign-ins unless consent is forced.
       accessType: "offline",
       prompt: "select_account consent",
       scope: [

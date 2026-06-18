@@ -252,7 +252,6 @@ export function CommitmentsWorkspace({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  // Resolved (done) commitments drop out of the lanes; expired stay flagged.
   const visible = useMemo(
     () => commitments.filter((item) => item.status !== "resolved"),
     [commitments],

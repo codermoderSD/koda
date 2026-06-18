@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createDraftCommitment } from "~/server/koda/commitments";
-import { deleteEmailDraft, updateEmailDraft } from "~/server/koda/gmail-actions";
+import {
+  deleteEmailDraft,
+  updateEmailDraft,
+} from "~/server/koda/gmail-actions";
 
 const updateDraftSchema = z.object({
   to: z.array(z.string().min(1)).min(1),

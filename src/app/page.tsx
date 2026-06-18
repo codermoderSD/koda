@@ -115,7 +115,6 @@ export default async function Home() {
       <LandingNav />
 
       <main className="relative isolate">
-        {/* Hero */}
         <section className="relative isolate flex flex-col items-center px-5 pt-16 pb-16 text-center sm:px-6 sm:pt-24 sm:pb-24">
           <div className="aurora" aria-hidden />
           <div className="grid-texture absolute inset-0 -z-10" aria-hidden />
@@ -150,7 +149,6 @@ export default async function Home() {
               tenant-scoped · no passwords stored
             </p>
 
-            {/* Product preview */}
             <div className="rise relative mt-12 w-full sm:mt-16">
               <div className="float overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] shadow-[var(--shadow-soft)]">
                 <div className="flex items-center gap-2 border-b border-[var(--color-line)] px-4 py-2.5">
@@ -163,7 +161,6 @@ export default async function Home() {
                 </div>
 
                 <div className="grid min-h-[390px] grid-cols-1 text-left md:min-h-[440px] md:grid-cols-[1.7fr_2fr_1.5fr]">
-                  {/* MAIL pane */}
                   <div className="flex flex-col border-b border-[var(--color-line)] md:border-r md:border-b-0">
                     <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
                       <div className="flex items-center gap-2">
@@ -245,7 +242,6 @@ export default async function Home() {
                     </div>
                   </div>
 
-                  {/* THREAD pane */}
                   <div className="flex flex-col border-b border-[var(--color-line)] md:border-r md:border-b-0">
                     <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
                       <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text)] uppercase">
@@ -330,7 +326,6 @@ export default async function Home() {
                     </div>
                   </div>
 
-                  {/* CALENDAR pane */}
                   <div className="hidden flex-col md:flex">
                     <div className="flex items-center justify-between border-b border-[var(--color-line)] px-3 py-2.5">
                       <div className="flex items-center gap-2">
@@ -413,7 +408,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Capabilities */}
         <section
           id="features"
           className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
@@ -445,7 +439,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* How it works */}
         <section
           id="how"
           className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16 sm:px-6 sm:py-24"
@@ -477,7 +470,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* CTA */}
         <section className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16">
           <div className="relative isolate overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-6 py-12 text-center sm:px-12 sm:py-16">
             <div className="aurora" aria-hidden />

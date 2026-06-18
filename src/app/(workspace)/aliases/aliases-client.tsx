@@ -60,8 +60,8 @@ export function AliasesClient({
         method: "DELETE",
       });
       setAliases((prev) => prev.filter((a) => a.id !== id));
-    } catch {
-      // silently ignore
+    } catch (error) {
+      void error;
     } finally {
       setDeletingId(null);
     }
@@ -69,7 +69,6 @@ export function AliasesClient({
 
   return (
     <div className="flex w-full flex-col gap-5">
-      {/* Add form */}
       <div className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-5">
         <p className="kicker mb-4 text-[var(--color-accent)]">New alias</p>
         <div className="flex flex-col gap-3">
@@ -82,7 +81,7 @@ export function AliasesClient({
                 value={alias}
                 onChange={(e) => setAlias(e.target.value.replace(/^@/, ""))}
                 placeholder="handle"
-                className="w-36 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] py-2 pr-3 pl-7 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-soft)] transition focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                className="w-36 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-panel)] py-2 pr-3 pl-7 text-[13px] text-[var(--color-text)] transition placeholder:text-[var(--color-text-soft)] focus:ring-1 focus:ring-[var(--color-accent)] focus:outline-none"
               />
             </div>
             <input
@@ -113,7 +112,6 @@ export function AliasesClient({
         </div>
       </div>
 
-      {/* Alias list */}
       {aliases.length === 0 ? (
         <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-line)] px-6 py-10 text-center">
           <p className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-text-soft)] uppercase">

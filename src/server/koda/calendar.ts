@@ -87,7 +87,6 @@ export async function getCalendarEvents(options: {
   }
 }
 
-/** Fetches events spanning a window around `now` wide enough for week/month nav. */
 export async function getCalendarWindow(now: Date, tenantId?: string) {
   const min = new Date(now);
   min.setDate(min.getDate() - 31);

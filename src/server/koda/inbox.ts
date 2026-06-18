@@ -200,7 +200,6 @@ function stripHtml(value: string): string {
     .trim();
 }
 
-/** Picks the richest readable body: longest of text/plain vs stripped text/html. */
 function bestBody(message: GmailMessage): string | undefined {
   if (message.body) return message.body;
 

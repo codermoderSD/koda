@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
@@ -455,14 +456,13 @@ function AliasToField({
   onChange: (val: string) => void;
   onAliasCreated: (a: EmailAlias) => void;
 }) {
-  const [addFor, setAddFor] = useState<string | null>(null); // @word with no match
+  const [addFor, setAddFor] = useState<string | null>(null);
   const [addEmail, setAddEmail] = useState("");
   const [addLabel, setAddLabel] = useState("");
   const [addBusy, setAddBusy] = useState(false);
 
-  // Detect last @word in the current input value
   const atMatch = /(?:^|[\s,])(@[a-zA-Z0-9_-]*)$/.exec(value);
-  const currentAt = atMatch?.[1] ?? null; // e.g. "@cto"
+  const currentAt = atMatch?.[1] ?? null;
   const handle = currentAt?.slice(1).toLowerCase() ?? "";
   const suggestions = handle
     ? aliases.filter((a) => a.alias.startsWith(handle))
@@ -471,7 +471,6 @@ function AliasToField({
   const showDropdown = !!currentAt && handle.length > 0;
 
   function pickSuggestion(alias: EmailAlias) {
-    // replace the trailing @word with the resolved email
     const replaced = value.replace(/(@[a-zA-Z0-9_-]*)$/, alias.email);
     onChange(replaced.endsWith(",") ? replaced + " " : replaced + ", ");
     setAddFor(null);
@@ -497,8 +496,8 @@ function AliasToField({
       setAddFor(null);
       setAddEmail("");
       setAddLabel("");
-    } catch {
-      // silently ignore
+    } catch (error) {
+      void error;
     } finally {
       setAddBusy(false);
     }
@@ -710,8 +709,8 @@ function DraftRow({
         method: "DELETE",
       });
       onDeleted(draft.id);
-    } catch {
-      // silently ignore
+    } catch (error) {
+      void error;
     } finally {
       setBusy(false);
     }
@@ -818,7 +817,6 @@ export function WorkspaceConsole({
   const [localThreads, setLocalThreads] = useState(threads);
   const [pageToken, setPageToken] = useState(nextPageToken);
   const [pageBusy, setPageBusy] = useState(false);
-  const [refreshBusy, setRefreshBusy] = useState(false);
   const knownThreadIdsRef = useRef(new Set(threads.map((thread) => thread.id)));
   const refreshRequestedRef = useRef(false);
   const [highlightedThreadIds, setHighlightedThreadIds] = useState<Set<string>>(
@@ -919,7 +917,6 @@ export function WorkspaceConsole({
     setLocalThreads(threads);
     setPageToken(nextPageToken);
     refreshRequestedRef.current = false;
-    setRefreshBusy(false);
   }, [threads, nextPageToken]);
 
   useEffect(() => {
@@ -956,7 +953,6 @@ export function WorkspaceConsole({
       .then((data: { aliases?: EmailAlias[] }) =>
         setAliases(data.aliases ?? []),
       )
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       .catch((e) => {
         console.error("Could not fetch aliases", e);
       });
@@ -1262,15 +1258,6 @@ export function WorkspaceConsole({
     setMailFilter("search");
     setSelectedId(undefined);
     router.push(searchUrl(query));
-  }
-
-  function refreshMail() {
-    knownThreadIdsRef.current = new Set(
-      localThreads.map((thread) => thread.id),
-    );
-    refreshRequestedRef.current = true;
-    setRefreshBusy(true);
-    router.refresh();
   }
 
   function mapApiThread(thread: {
@@ -1743,7 +1730,6 @@ export function WorkspaceConsole({
     }
   }
 
-  // Convert a horizontal pixel drag into a percentage delta of the pane row.
   const adjustPct = (
     key: "mail" | "calendarOpen" | "calendarClosed",
     deltaPx: number,
@@ -1753,7 +1739,6 @@ export function WorkspaceConsole({
   };
 
   const mailBasisStyle = { "--pane-basis": `${widths.mail}%` } as CSSProperties;
-  // Calendar is narrower (2:3:2) with a thread open, wider (4:3) when closed.
   const calendarBasisStyle = {
     "--pane-basis": `${active ? widths.calendarOpen : widths.calendarClosed}%`,
   } as CSSProperties;
@@ -1763,262 +1748,256 @@ export function WorkspaceConsole({
       ref={paneContainerRef}
       className="flex w-full flex-col gap-3 lg:h-full lg:min-h-0 lg:flex-row"
     >
-      {/* Mail list */}
-      {
-        <section
-          style={active ? mailBasisStyle : undefined}
-          className={`flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${
-            active
-              ? "lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)"
-              : "lg:flex-1"
-          }`}
+      <section
+        style={active ? mailBasisStyle : undefined}
+        className={`flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 ${
+          active ? "lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)" : "lg:flex-1"
+        }`}
+      >
+        <PaneHeader
+          title="Mail"
+          count={
+            mailFilter === "search"
+              ? `${visibleThreads.length}/${localSearchThreads.length}`
+              : `${visibleThreads.length}/${localThreads.length}`
+          }
         >
-          <PaneHeader
-            title="Mail"
-            count={
-              mailFilter === "search"
-                ? `${visibleThreads.length}/${localSearchThreads.length}`
-                : `${visibleThreads.length}/${localThreads.length}`
-            }
+          <button
+            type="button"
+            onClick={() => {
+              setComposeOpen(true);
+              setComposeStatus(null);
+            }}
+            className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
           >
-            <button
-              type="button"
-              onClick={() => {
-                setComposeOpen(true);
-                setComposeStatus(null);
-              }}
-              className="rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-[var(--color-accent-strong)]"
+            Compose
+          </button>
+        </PaneHeader>
+        <div className="space-y-2 border-b border-[var(--color-line)] px-3 py-2">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitMailSearch();
+            }}
+            className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5"
+          >
+            <svg
+              className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-soft)]"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
             >
-              Compose
-            </button>
-          </PaneHeader>
-          <div className="space-y-2 border-b border-[var(--color-line)] px-3 py-2">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitMailSearch();
-              }}
-              className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-2.5 py-1.5"
-            >
-              <svg
-                className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-soft)]"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-              >
-                <circle cx="7" cy="7" r="4.5" />
-                <path d="m11 11 3 3" strokeLinecap="round" />
-              </svg>
-              <input
-                value={mailQuery}
-                onChange={(e) => setMailQuery(e.target.value)}
-                placeholder="Search all Gmail"
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
-              />
-              {mailQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMailQuery("");
-                    if (mailFilter === "search") router.push("/inbox");
-                  }}
-                  aria-label="Clear search"
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
-                >
-                  <svg
-                    viewBox="0 0 16 16"
-                    className="h-3 w-3"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  >
-                    <path d="M4 4l8 8M12 4l-8 8" />
-                  </svg>
-                </button>
-              )}
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="m11 11 3 3" strokeLinecap="round" />
+            </svg>
+            <input
+              value={mailQuery}
+              onChange={(e) => setMailQuery(e.target.value)}
+              placeholder="Search all Gmail"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-soft)]"
+            />
+            {mailQuery && (
               <button
-                type="submit"
-                disabled={!mailQuery.trim()}
-                className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text)] transition hover:bg-[var(--color-accent-soft)] disabled:opacity-50"
+                type="button"
+                onClick={() => {
+                  setMailQuery("");
+                  if (mailFilter === "search") router.push("/inbox");
+                }}
+                aria-label="Clear search"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]"
               >
-                Search
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
               </button>
-            </form>
-            <div className="flex items-center gap-1">
-              {(["focused", "all", "drafts", "search"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => {
-                    if (f === "search" && searchQuery) {
-                      router.push(searchUrl(searchQuery, selectedId));
-                      return;
-                    }
-                    setMailFilter(f);
-                    router.push(listUrl(f));
-                  }}
-                  disabled={f === "search" && !searchQuery}
-                  className={`rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-medium capitalize transition ${
-                    mailFilter === f
-                      ? "bg-[var(--color-panel-strong)] text-[var(--color-text)]"
-                      : "text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
-                  } ${f === "search" && !searchQuery ? "opacity-40" : ""}`}
-                  title={
-                    f === "search" && searchQuery
-                      ? `Search: ${searchQuery}`
-                      : undefined
+            )}
+            <button
+              type="submit"
+              disabled={!mailQuery.trim()}
+              className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text)] transition hover:bg-[var(--color-accent-soft)] disabled:opacity-50"
+            >
+              Search
+            </button>
+          </form>
+          <div className="flex items-center gap-1">
+            {(["focused", "all", "drafts", "search"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => {
+                  if (f === "search" && searchQuery) {
+                    router.push(searchUrl(searchQuery, selectedId));
+                    return;
                   }
-                >
-                  {f === "search" && searchQuery
-                    ? `Search (${localSearchThreads.length})`
-                    : f === "drafts" && localDrafts.length > 0
-                      ? `Drafts (${localDrafts.length})`
-                      : f}
-                </button>
-              ))}
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMailQuery("");
-                    setLocalSearchThreads([]);
-                    setSearchPageToken(null);
-                    router.push(
-                      selectedId
-                        ? normalThreadUrl(selectedId, "focused")
-                        : "/inbox",
-                    );
-                  }}
-                  className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] text-[var(--color-text-soft)] transition hover:text-[var(--color-text)]"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-            {mailFilter === "drafts" ? (
-              draftsBusy ? (
-                <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
-                  Loading drafts…
-                </p>
-              ) : localDrafts.length === 0 ? (
-                <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
-                  No drafts in Gmail.
-                </p>
-              ) : (
-                localDrafts.map((d) => (
-                  <DraftRow
-                    key={d.id}
-                    draft={d}
-                    onSent={(id) =>
-                      setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
-                    }
-                    onDeleted={(id) =>
-                      setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
-                    }
-                  />
-                ))
-              )
-            ) : (
-              <>
-                {visibleThreads.length === 0 && (
-                  <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
-                    {mailQuery
-                      ? "No mail matches your search."
-                      : mailFilter === "search"
-                        ? "No KODA search results."
-                        : "No focused mail right now."}
-                  </p>
-                )}
-                {visibleThreads.map((thread) => {
-                  const isActive = thread.id === active?.id;
-                  const isHighlighted = highlightedThreadIds.has(thread.id);
-                  return (
-                    <button
-                      key={thread.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(thread.id);
-                        setReplyStatus(null);
-                        setHighlightedThreadIds((current) => {
-                          if (!current.has(thread.id)) return current;
-                          const next = new Set(current);
-                          next.delete(thread.id);
-                          return next;
-                        });
-                        router.push(
-                          mailFilter === "search" && searchQuery
-                            ? searchUrl(searchQuery, thread.id)
-                            : normalThreadUrl(thread.id, mailFilter),
-                        );
-                      }}
-                      className={`flex w-full gap-3 border-l-2 px-3.5 py-3 text-left transition ${
-                        isActive
-                          ? "border-l-transparent bg-[var(--color-panel-strong)]"
-                          : isHighlighted
-                            ? "border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:bg-[var(--color-panel)]"
-                            : "border-l-transparent hover:bg-[var(--color-panel)]"
-                      }`}
-                    >
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
-                        {senderInitials(thread.from)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
-                            {senderDisplayName(thread.from) || thread.from}
-                          </p>
-                          <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
-                            {thread.time}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
-                          {thread.subject}
-                        </p>
-                        <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
-                          {thread.preview}
-                        </p>
-                        <div className="mt-2">
-                          <Tag label={thread.priority} />
-                        </div>
-                      </div>
-                    </button>
+                  setMailFilter(f);
+                  router.push(listUrl(f));
+                }}
+                disabled={f === "search" && !searchQuery}
+                className={`rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-medium capitalize transition ${
+                  mailFilter === f
+                    ? "bg-[var(--color-panel-strong)] text-[var(--color-text)]"
+                    : "text-[var(--color-text-soft)] hover:text-[var(--color-text)]"
+                } ${f === "search" && !searchQuery ? "opacity-40" : ""}`}
+                title={
+                  f === "search" && searchQuery
+                    ? `Search: ${searchQuery}`
+                    : undefined
+                }
+              >
+                {f === "search" && searchQuery
+                  ? `Search (${localSearchThreads.length})`
+                  : f === "drafts" && localDrafts.length > 0
+                    ? `Drafts (${localDrafts.length})`
+                    : f}
+              </button>
+            ))}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMailQuery("");
+                  setLocalSearchThreads([]);
+                  setSearchPageToken(null);
+                  router.push(
+                    selectedId
+                      ? normalThreadUrl(selectedId, "focused")
+                      : "/inbox",
                   );
-                })}
-                {pageToken && !mailQuery && mailFilter !== "search" && (
-                  <div className="p-3">
-                    <button
-                      type="button"
-                      onClick={loadMoreMail}
-                      disabled={pageBusy}
-                      className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
-                    >
-                      {pageBusy ? "Loading..." : "Load 20 more"}
-                    </button>
-                  </div>
-                )}
-                {searchPageToken && mailFilter === "search" && (
-                  <div className="p-3">
-                    <button
-                      type="button"
-                      onClick={loadMoreSearchMail}
-                      disabled={searchBusy}
-                      className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
-                    >
-                      {searchBusy ? "Loading..." : "Load 20 more results"}
-                    </button>
-                  </div>
-                )}
-              </>
+                }}
+                className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] text-[var(--color-text-soft)] transition hover:text-[var(--color-text)]"
+              >
+                Clear
+              </button>
             )}
           </div>
-        </section>
-      }
+        </div>
+        <div className="divide-y divide-[var(--color-line)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          {mailFilter === "drafts" ? (
+            draftsBusy ? (
+              <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                Loading drafts…
+              </p>
+            ) : localDrafts.length === 0 ? (
+              <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                No drafts in Gmail.
+              </p>
+            ) : (
+              localDrafts.map((d) => (
+                <DraftRow
+                  key={d.id}
+                  draft={d}
+                  onSent={(id) =>
+                    setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
+                  }
+                  onDeleted={(id) =>
+                    setLocalDrafts((prev) => prev.filter((x) => x.id !== id))
+                  }
+                />
+              ))
+            )
+          ) : (
+            <>
+              {visibleThreads.length === 0 && (
+                <p className="px-3.5 py-4 text-[12px] text-[var(--color-text-soft)]">
+                  {mailQuery
+                    ? "No mail matches your search."
+                    : mailFilter === "search"
+                      ? "No KODA search results."
+                      : "No focused mail right now."}
+                </p>
+              )}
+              {visibleThreads.map((thread) => {
+                const isActive = thread.id === active?.id;
+                const isHighlighted = highlightedThreadIds.has(thread.id);
+                return (
+                  <button
+                    key={thread.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(thread.id);
+                      setReplyStatus(null);
+                      setHighlightedThreadIds((current) => {
+                        if (!current.has(thread.id)) return current;
+                        const next = new Set(current);
+                        next.delete(thread.id);
+                        return next;
+                      });
+                      router.push(
+                        mailFilter === "search" && searchQuery
+                          ? searchUrl(searchQuery, thread.id)
+                          : normalThreadUrl(thread.id, mailFilter),
+                      );
+                    }}
+                    className={`flex w-full gap-3 border-l-2 px-3.5 py-3 text-left transition ${
+                      isActive
+                        ? "border-l-transparent bg-[var(--color-panel-strong)]"
+                        : isHighlighted
+                          ? "border-l-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:bg-[var(--color-panel)]"
+                          : "border-l-transparent hover:bg-[var(--color-panel)]"
+                    }`}
+                  >
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-panel-strong)] font-mono text-[11px] font-medium text-[var(--color-text-muted)]">
+                      {senderInitials(thread.from)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[13px] font-medium text-[var(--color-text)]">
+                          {senderDisplayName(thread.from) || thread.from}
+                        </p>
+                        <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-soft)]">
+                          {thread.time}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[13px] text-[var(--color-text-muted)]">
+                        {thread.subject}
+                      </p>
+                      <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--color-text-soft)]">
+                        {thread.preview}
+                      </p>
+                      <div className="mt-2">
+                        <Tag label={thread.priority} />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+              {pageToken && !mailQuery && mailFilter !== "search" && (
+                <div className="p-3">
+                  <button
+                    type="button"
+                    onClick={loadMoreMail}
+                    disabled={pageBusy}
+                    className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                  >
+                    {pageBusy ? "Loading..." : "Load 20 more"}
+                  </button>
+                </div>
+              )}
+              {searchPageToken && mailFilter === "search" && (
+                <div className="p-3">
+                  <button
+                    type="button"
+                    onClick={loadMoreSearchMail}
+                    disabled={searchBusy}
+                    className="w-full rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-2 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)] disabled:opacity-60"
+                  >
+                    {searchBusy ? "Loading..." : "Load 20 more results"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
 
-      {/* Mail | Thread resize handle (3-pane only) */}
       {active && (
         <ResizeHandle
           ariaLabel="Resize mail pane"
@@ -2026,7 +2005,6 @@ export function WorkspaceConsole({
         />
       )}
 
-      {/* Mail detail, only mounts when a thread is selected */}
       {active && (
         <section className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:flex-1">
           <PaneHeader title="Thread">
@@ -2262,9 +2240,12 @@ export function WorkspaceConsole({
                                   key={attachment.id}
                                   className="overflow-hidden rounded-[var(--radius)] border border-[var(--color-line)] bg-[var(--color-surface-2)]"
                                 >
-                                  <img
+                                  <Image
                                     src={attachment.dataUrl}
                                     alt={attachment.filename}
+                                    width={640}
+                                    height={320}
+                                    unoptimized
                                     className="max-h-80 w-full object-contain"
                                   />
                                   <figcaption className="truncate border-t border-[var(--color-line)] px-2.5 py-1.5 text-[11px] text-[var(--color-text-soft)]">
@@ -2414,7 +2395,6 @@ export function WorkspaceConsole({
         </section>
       )}
 
-      {/* Thread|Calendar (3-pane) or Mail|Calendar (2-pane) resize handle */}
       <ResizeHandle
         ariaLabel="Resize calendar pane"
         onResize={(dx) =>
@@ -2422,181 +2402,175 @@ export function WorkspaceConsole({
         }
       />
 
-      {/* Calendar */}
-      {
-        <section
-          style={calendarBasisStyle}
-          className="flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)"
+      <section
+        style={calendarBasisStyle}
+        className="flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-2)] lg:min-h-0 lg:shrink-0 lg:grow-0 lg:basis-(--pane-basis)"
+      >
+        <PaneHeader
+          title="Calendar"
+          count={startOfWeek(calRef).toLocaleDateString("en-US", {
+            month: "short",
+            year: "numeric",
+          })}
         >
-          <PaneHeader
-            title="Calendar"
-            count={startOfWeek(calRef).toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            })}
+          <button
+            type="button"
+            onClick={() => {
+              setEventOpen((open) => {
+                const next = !open;
+                if (next) setEventForm(defaultQuickEvent(now));
+                return next;
+              });
+              setEventStatus(null);
+            }}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
           >
-            <button
-              type="button"
-              onClick={() => {
-                setEventOpen((open) => {
-                  const next = !open;
-                  if (next) setEventForm(defaultQuickEvent(now));
-                  return next;
-                });
-                setEventStatus(null);
-              }}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2 py-1 text-[12px] text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
-            >
-              + New
-            </button>
-          </PaneHeader>
+            + New
+          </button>
+        </PaneHeader>
 
-          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-            {/* Week strip */}
-            <div className="grid grid-cols-7 gap-1 border-b border-[var(--color-line)] p-3">
-              {weekStrip.map((d) => (
-                <button
-                  type="button"
-                  key={d.full.toISOString()}
-                  onClick={() => toggleSelectedDay(d.full)}
-                  className={`flex flex-col items-center gap-1 rounded-[var(--radius)] py-2 transition ${
-                    d.selected
-                      ? "bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]"
-                      : d.today
-                        ? "bg-[var(--color-panel-strong)] hover:bg-[var(--color-panel)]"
-                        : "hover:bg-[var(--color-panel)]"
+        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <div className="grid grid-cols-7 gap-1 border-b border-[var(--color-line)] p-3">
+            {weekStrip.map((d) => (
+              <button
+                type="button"
+                key={d.full.toISOString()}
+                onClick={() => toggleSelectedDay(d.full)}
+                className={`flex flex-col items-center gap-1 rounded-[var(--radius)] py-2 transition ${
+                  d.selected
+                    ? "bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]"
+                    : d.today
+                      ? "bg-[var(--color-panel-strong)] hover:bg-[var(--color-panel)]"
+                      : "hover:bg-[var(--color-panel)]"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
+                  {d.label}
+                </span>
+                <span
+                  className={`text-[13px] font-medium ${
+                    d.today || d.selected
+                      ? "text-[var(--color-accent)]"
+                      : "text-[var(--color-text)]"
                   }`}
                 >
-                  <span className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                    {d.label}
-                  </span>
-                  <span
-                    className={`text-[13px] font-medium ${
-                      d.today || d.selected
-                        ? "text-[var(--color-accent)]"
-                        : "text-[var(--color-text)]"
-                    }`}
-                  >
-                    {d.date}
-                  </span>
-                  <span className="flex h-1 gap-0.5">
-                    {Array.from({ length: d.dots }).map((_, i) => (
-                      <span
-                        key={i}
-                        className="h-1 w-1 rounded-full bg-[var(--color-accent)]"
-                      />
-                    ))}
-                  </span>
-                </button>
-              ))}
-            </div>
+                  {d.date}
+                </span>
+                <span className="flex h-1 gap-0.5">
+                  {Array.from({ length: d.dots }).map((_, i) => (
+                    <span
+                      key={i}
+                      className="h-1 w-1 rounded-full bg-[var(--color-accent)]"
+                    />
+                  ))}
+                </span>
+              </button>
+            ))}
+          </div>
 
-            {/* Agenda + linked deadline */}
-            <div className="p-3">
-              {eventOpen && (
-                <QuickEventComposer
-                  form={eventForm}
-                  setForm={setEventForm}
-                  busy={eventBusy}
-                  status={eventStatus}
-                  onCreate={createQuickEvent}
-                />
-              )}
+          <div className="p-3">
+            {eventOpen && (
+              <QuickEventComposer
+                form={eventForm}
+                setForm={setEventForm}
+                busy={eventBusy}
+                status={eventStatus}
+                onCreate={createQuickEvent}
+              />
+            )}
 
-              {active?.commitment && (
-                <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3 py-2.5">
-                  <p className="kicker text-[var(--color-accent)]">
-                    From open thread
-                  </p>
-                  <p className="mt-1 text-[13px] font-medium text-[var(--color-text)]">
-                    {active.commitment.deadline}
-                  </p>
-                  <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-muted)]">
-                    {active.commitment.title}
-                  </p>
-                </div>
-              )}
-
-              <div className="mb-1 flex items-center justify-between px-1">
-                <p className="kicker">
-                  {selectedDay
-                    ? selectedDay.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "Up next"}
+            {active?.commitment && (
+              <div className="mb-3 rounded-[var(--radius)] border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3 py-2.5">
+                <p className="kicker text-[var(--color-accent)]">
+                  From open thread
                 </p>
-                {selectedDay && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDay(null)}
-                    className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase transition hover:text-[var(--color-text)]"
+                <p className="mt-1 text-[13px] font-medium text-[var(--color-text)]">
+                  {active.commitment.deadline}
+                </p>
+                <p className="mt-0.5 truncate text-[12px] text-[var(--color-text-muted)]">
+                  {active.commitment.title}
+                </p>
+              </div>
+            )}
+
+            <div className="mb-1 flex items-center justify-between px-1">
+              <p className="kicker">
+                {selectedDay
+                  ? selectedDay.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "Up next"}
+              </p>
+              {selectedDay && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDay(null)}
+                  className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-text-soft)] uppercase transition hover:text-[var(--color-text)]"
+                >
+                  Upcoming
+                </button>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              {(selectedDay ? (dayAgenda ?? []) : agenda).length === 0 && (
+                <p className="px-2 py-2 text-[13px] text-[var(--color-text-soft)]">
+                  {selectedDay
+                    ? "No events on this day."
+                    : "Nothing scheduled ahead."}
+                </p>
+              )}
+              {(selectedDay ? (dayAgenda ?? []) : agenda).map((item) => {
+                const d = new Date(item.start!);
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2.5 rounded-[var(--radius)] px-2 py-2 transition hover:bg-[var(--color-panel)]"
                   >
-                    Upcoming
-                  </button>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                {(selectedDay ? (dayAgenda ?? []) : agenda).length === 0 && (
-                  <p className="px-2 py-2 text-[13px] text-[var(--color-text-soft)]">
-                    {selectedDay
-                      ? "No events on this day."
-                      : "Nothing scheduled ahead."}
-                  </p>
-                )}
-                {(selectedDay ? (dayAgenda ?? []) : agenda).map((item) => {
-                  const d = new Date(item.start!);
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2.5 rounded-[var(--radius)] px-2 py-2 transition hover:bg-[var(--color-panel)]"
-                    >
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] text-[var(--color-text)]">
-                          {item.title}
-                        </p>
-                        <p className="font-mono text-[10px] text-[var(--color-text-soft)]">
-                          {d.toLocaleDateString("en-US", { weekday: "short" })}{" "}
-                          · {item.allDay ? "All day" : fmtTime(d)}
-                        </p>
-                      </div>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] text-[var(--color-text)]">
+                        {item.title}
+                      </p>
+                      <p className="font-mono text-[10px] text-[var(--color-text-soft)]">
+                        {d.toLocaleDateString("en-US", { weekday: "short" })} ·{" "}
+                        {item.allDay ? "All day" : fmtTime(d)}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+        </div>
 
-          {/* Week navigation, bottom of calendar pane */}
-          <div className="flex items-center justify-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
-            <button
-              type="button"
-              onClick={() => shiftWeek(-1)}
-              aria-label="Previous week"
-              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              onClick={resetCalendarToToday}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1 text-[11px] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => shiftWeek(1)}
-              aria-label="Next week"
-              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-            >
-              ›
-            </button>
-          </div>
-        </section>
-      }
+        <div className="flex items-center justify-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
+          <button
+            type="button"
+            onClick={() => shiftWeek(-1)}
+            aria-label="Previous week"
+            className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={resetCalendarToToday}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-line)] px-3 py-1 text-[11px] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => shiftWeek(1)}
+            aria-label="Next week"
+            className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+          >
+            ›
+          </button>
+        </div>
+      </section>
 
       {composeOpen && (
         <div className="pop fixed right-4 bottom-24 z-40 w-[min(420px,calc(100vw-32px))] rounded-[var(--radius-lg)] border border-[var(--color-line-strong)] bg-[var(--color-panel-elevated)] shadow-[var(--shadow-soft)] lg:bottom-20">
@@ -2689,9 +2663,12 @@ export function WorkspaceConsole({
                   key={attachment.id}
                   className="group relative overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)]"
                 >
-                  <img
+                  <Image
                     src={attachment.previewUrl}
                     alt=""
+                    width={320}
+                    height={96}
+                    unoptimized
                     className="h-24 w-full object-cover"
                   />
                   <div className="flex items-center justify-between gap-2 px-2 py-1.5">

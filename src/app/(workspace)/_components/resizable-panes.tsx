@@ -6,18 +6,16 @@ const STORAGE_KEY = "koda:inbox-panes-v2";
 const MIN_PCT = 16;
 const MAX_PCT = 62;
 
-// Mail % + calendar % are tracked; the remaining pane is the flex-1 fill.
-// Defaults match the target ratios: 2:3:2 with a thread open, 4:3 without.
 export type PaneWidths = {
-  mail: number; // mail width when thread is open (closed → mail is flex-1)
-  calendarOpen: number; // calendar width when thread is open
-  calendarClosed: number; // calendar width when thread is closed
+  mail: number;
+  calendarOpen: number;
+  calendarClosed: number;
 };
 
 const DEFAULTS: PaneWidths = {
-  mail: 28.5, // 2 / 7
-  calendarOpen: 28.5, // 2 / 7  → thread fills ~3/7
-  calendarClosed: 43, // 3 / 7  → mail fills ~4/7
+  mail: 28.5,
+  calendarOpen: 28.5,
+  calendarClosed: 43,
 };
 
 function clamp(value: number) {
@@ -25,10 +23,6 @@ function clamp(value: number) {
   return Math.min(MAX_PCT, Math.max(MIN_PCT, value));
 }
 
-/**
- * Pane widths as percentages of the inbox container, persisted to localStorage.
- * Reads storage in an effect to stay SSR-safe (no hydration mismatch).
- */
 export function usePaneWidths() {
   const [widths, setWidths] = useState<PaneWidths>(DEFAULTS);
 
@@ -42,19 +36,18 @@ export function usePaneWidths() {
         calendarOpen: clamp(parsed.calendarOpen ?? current.calendarOpen),
         calendarClosed: clamp(parsed.calendarClosed ?? current.calendarClosed),
       }));
-    } catch {
-      // ignore malformed storage
+    } catch (error) {
+      void error;
     }
   }, []);
 
-  /** Apply a percentage delta to one pane, clamped and persisted. */
   const adjust = useCallback((key: keyof PaneWidths, deltaPct: number) => {
     setWidths((current) => {
       const next = { ...current, [key]: clamp(current[key] + deltaPct) };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore quota / private-mode errors
+      } catch (error) {
+        void error;
       }
       return next;
     });
@@ -63,11 +56,6 @@ export function usePaneWidths() {
   return { widths, adjust };
 }
 
-/**
- * Thin draggable divider between two panes. Reports the raw horizontal pixel
- * delta of each pointer move; the parent converts it to a percentage against
- * the container width. Desktop only (hidden below lg, where panes stack).
- */
 export function ResizeHandle({
   ariaLabel,
   onResize,

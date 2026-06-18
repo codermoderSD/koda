@@ -26,19 +26,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Include tenantId if you're using multi-tenancy
   const tenantId = DEFAULT_KODA_TENANT_ID;
 
   const result = await processWebhook(corsair, headers, body, { tenantId });
 
-  console.log("Plugin Processed", result.plugin, result.action);
-
-  if (result.plugin === "gmail" && result.response?.success && result.response.data) {
+  if (
+    result.plugin === "gmail" &&
+    result.response?.success &&
+    result.response.data
+  ) {
     await projectGmailWebhookEvent(result.response.data as GmailWebhookEvent);
   }
 
-  // Build response headers example Asana X-Hook-Secret header
-  // any/unknown cast needed since responseheaders is a newer field not yet in the installed type definitions
   const responseHeaders = result.responseHeaders;
   const nextHeaders = new Headers();
   if (responseHeaders) {
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // handle case where no webhook matched
   if (!result.response) {
     return NextResponse.json(
       { success: false, message: "No matching webhook found" },

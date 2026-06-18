@@ -44,7 +44,9 @@ export function ThemeToggle() {
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          theme === "dark" ? "bg-[var(--color-accent)]" : "bg-[var(--color-warning)]"
+          theme === "dark"
+            ? "bg-[var(--color-accent)]"
+            : "bg-[var(--color-warning)]"
         }`}
       />
       <span className="font-mono">

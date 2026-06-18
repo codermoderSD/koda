@@ -13,9 +13,8 @@ import {
 
 export type ConnectionState = "connected" | "needs-reconnect";
 
-const PLUGIN_NAMES = ["gmail", "googlecalendar"] as const;
+type PluginName = "gmail" | "googlecalendar";
 
-/** The logged-in user's stored Google OAuth tokens (from Better Auth). */
 async function getGoogleAccount(userId: string) {
   const [row] = await db
     .select()
@@ -25,7 +24,6 @@ async function getGoogleAccount(userId: string) {
   return row ?? null;
 }
 
-/** A row + DEK exists when get_dek() resolves; it throws otherwise. */
 async function dekExists(getDek: () => Promise<string>) {
   try {
     await getDek();
@@ -35,7 +33,7 @@ async function dekExists(getDek: () => Promise<string>) {
   }
 }
 
-async function ensureIntegrationRow(name: (typeof PLUGIN_NAMES)[number]) {
+async function ensureIntegrationRow(name: PluginName) {
   const [existing] = await db
     .select()
     .from(corsairIntegrations)
@@ -57,10 +55,7 @@ async function ensureIntegrationRow(name: (typeof PLUGIN_NAMES)[number]) {
   return created;
 }
 
-async function ensureAccountRow(
-  name: (typeof PLUGIN_NAMES)[number],
-  tenantId: string,
-) {
+async function ensureAccountRow(name: PluginName, tenantId: string) {
   const integration = await ensureIntegrationRow(name);
   const [existing] = await db
     .select()
@@ -99,11 +94,6 @@ async function ensureAccountRow(
   return created;
 }
 
-/**
- * Ensures Corsair's shared integration-level Google client matches the Better
- * Auth client, so refresh tokens issued at login work when Corsair refreshes.
- * Creates the integration DEK first if missing, then writes credentials once.
- */
 async function ensureIntegrationCredentials() {
   const clientId = env.BETTER_AUTH_GOOGLE_CLIENT_ID;
   const clientSecret = env.BETTER_AUTH_GOOGLE_CLIENT_SECRET;
@@ -139,20 +129,9 @@ async function ensureIntegrationCredentials() {
   }
 }
 
-/**
- * Seeds the current user's Google tokens into a tenant-scoped Corsair account so
- * Gmail/Calendar reads work for them. Single OAuth: the tokens come from the
- * login consent, no second authorization screen. The tenant account (+ its
- * encryption DEK) is created on demand before any key is written.
- *
- * Returns "connected" once the tenant has a usable refresh token, otherwise
- * "needs-reconnect" (the user must re-authorize Google to mint a refresh token).
- */
 export async function ensureCorsairConnection(
   userId: string,
 ): Promise<ConnectionState> {
-  // Already seeded, cheap short-circuit on every workspace load. Check both
-  // plugins; older sessions may have Gmail seeded while Calendar is still empty.
   try {
     const client = corsair.withTenant(userId);
     const [gmailToken, calendarToken] = await Promise.all([
@@ -160,8 +139,8 @@ export async function ensureCorsairConnection(
       client.googlecalendar.keys.get_refresh_token(),
     ]);
     if (gmailToken && calendarToken) return "connected";
-  } catch {
-    // fall through and attempt to seed
+  } catch (error) {
+    void error;
   }
 
   const account = await getGoogleAccount(userId);
@@ -170,8 +149,6 @@ export async function ensureCorsairConnection(
     return "needs-reconnect";
   }
   if (!account.refreshToken) {
-    // Better Auth stored an account but Google did not return a refresh token.
-    // Happens when offline access / consent was not granted on this sign-in.
     console.warn(
       `[koda/connect] google account for user ${userId} has no refresh token ` +
         `(scope=${account.scope ?? "none"}). Re-auth with offline consent needed.`,
@@ -192,8 +169,6 @@ export async function ensureCorsairConnection(
   ];
   for (const { name, keys } of managers) {
     try {
-      // Corsair rejects key writes until the (tenant, integration) account row
-      // exists with a DEK, create it first if this is the user's first sync.
       await ensureAccountRow(name, userId);
       if (!(await dekExists(() => keys.get_dek()))) {
         await keys.issue_new_dek();

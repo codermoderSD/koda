@@ -22,8 +22,6 @@ const chatSchema = z.object({
   message: z.string().min(1),
   mode: z.enum(["ask", "search", "draft", "schedule"]).optional(),
   timeZone: z.string().min(1).optional(),
-  // Prior turns of the in-memory conversation, oldest first. Lets follow-ups
-  // resolve against earlier prompts/answers. Cleared when the chat is closed.
   history: z
     .array(
       z.object({
@@ -1610,7 +1608,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Daily per-user AI request quota. Only successful requests are charged.
     const quota = await getAiQuota(session.user.id);
     if (quota.remaining <= 0) {
       const message = `Daily limit reached, you've used all ${quota.limit} KODA requests for today. Try again tomorrow.`;
@@ -1743,8 +1740,6 @@ export async function POST(request: Request) {
       ? `${activeThreadContext(input.activeThread)}\n\nUser request: ${prompt}`
       : prompt;
 
-    // Carry the prior conversation so follow-ups have context. The current
-    // prompt is appended as the final user turn.
     const priorTurns = (input.history ?? [])
       .filter((turn) => turn.content.trim().length > 0)
       .map((turn) => ({ role: turn.role, content: turn.content }));
@@ -1784,7 +1779,6 @@ export async function POST(request: Request) {
   }
 }
 
-/** Map noisy provider errors to short, human messages for the chat UI. */
 function friendlyChatError(raw: string): string {
   const lower = raw.toLowerCase();
   if (lower.includes("rate limit") || lower.includes("tokens per day")) {
