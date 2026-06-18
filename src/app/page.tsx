@@ -158,7 +158,7 @@ export default async function Home() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-warning)]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-success)]" />
                   <span className="ml-3 rounded-[var(--radius-sm)] border border-[var(--color-line)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-text-soft)]">
-                    koda.dev/inbox
+                    koda.shubhamdalvi.in/inbox
                   </span>
                 </div>
 
